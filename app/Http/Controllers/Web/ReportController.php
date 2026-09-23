@@ -19,11 +19,12 @@ final class ReportController extends Controller
     public function download(Request $request, string $report, string $format, ReportService $reports): StreamedResponse|
     \Illuminate\Http\Response
     {
-        abort_unless(in_array($report, ['cash-flow', 'debtors', 'attendance', 'work-exemptions'], true), 404);
+        abort_unless(in_array($report, ['cash-flow', 'annual-balance', 'debtors', 'attendance', 'work-exemptions'], true), 404);
         abort_unless(in_array($format, ['xlsx', 'pdf'], true), 404);
 
         $data = $request->validate([
             'month' => ['nullable', 'date_format:Y-m'],
+            'year' => ['nullable', 'integer', 'between:2000,2100'],
             'assembly_id' => ['nullable', 'integer', 'exists:assemblies,id'],
         ]);
         $document = $reports->build($report, $data);

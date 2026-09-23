@@ -419,8 +419,11 @@ final class JassPageController extends Controller
                 ['label' => 'Lector de asistencia', 'route_name' => 'attendance.scanner', 'active' => 'attendance.*', 'permission' => 'reports.view'],
             ],
             'Reportes' => [
-                ['label' => 'Operativos', 'route_name' => 'dashboard', 'fragment' => 'reportes-operativos', 'permission' => 'reports.view'],
-                ['label' => 'Financieros y comunitarios', 'route_name' => 'dashboard', 'fragment' => 'reportes-financieros-comunitarios', 'permission' => 'reports.view'],
+                ['label' => 'Flujo de caja mensual', 'route_name' => 'dashboard', 'fragment' => 'reporte-flujo-caja', 'permission' => 'reports.view'],
+                ['label' => 'Balance anual', 'route_name' => 'dashboard', 'fragment' => 'reporte-balance-anual', 'permission' => 'reports.view'],
+                ['label' => 'Lista de morosos', 'route_name' => 'dashboard', 'fragment' => 'reporte-morosos', 'permission' => 'reports.view'],
+                ['label' => 'Asistencias', 'route_name' => 'dashboard', 'fragment' => 'reporte-asistencias', 'permission' => 'reports.view'],
+                ['label' => 'Exonerados de faenas', 'route_name' => 'dashboard', 'fragment' => 'reporte-exonerados', 'permission' => 'reports.view'],
             ],
             'Administración' => ['settings', 'roles', 'permissions', 'audit-logs'],
             'Catálogos' => ['customer-statuses', 'neighborhoods', 'connection-types', 'connection-statuses', 'usage-types', 'payment-methods', 'assembly-types', 'income-types', 'expense-categories'],

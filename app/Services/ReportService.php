@@ -19,13 +19,14 @@ final class ReportService
     }
 
     /**
-     * @param array{month?: string|null, assembly_id?: int|string|null} $filters
+     * @param array{month?: string|null, year?: int|string|null, assembly_id?: int|string|null} $filters
      * @return array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>}
      */
     public function build(string $report, array $filters = []): array
     {
         return match ($report) {
             'cash-flow' => $this->cashFlow($filters['month'] ?? null),
+            'annual-balance' => $this->annualBalance($filters['year'] ?? null),
             'debtors' => $this->debtors(),
             'attendance' => $this->attendance($filters['assembly_id'] ?? null),
             'work-exemptions' => $this->workExemptions(),
@@ -74,6 +75,55 @@ final class ReportService
             'Flujo de caja mensual', $period->translatedFormat('F Y'), 'flujo-caja-'.$period->format('Y-m'),
             ['Fecha', 'Tipo', 'Código', 'Concepto', 'Ingreso', 'Egreso', 'Saldo'], $rows->all(),
             ['Total ingresos' => $totalIncome, 'Total egresos' => $totalExpense, 'Saldo del período' => round($totalIncome - $totalExpense, 2)], [4, 5, 6],
+        );
+    }
+
+    private function annualBalance(int|string|null $selectedYear): array
+    {
+        $year = (int) ($selectedYear ?: now()->year);
+        $payments = Payment::query()
+            ->whereYear('paid_at', $year)
+            ->get()
+            ->groupBy(fn (Payment $payment): int => $payment->paid_at->month)
+            ->map(fn (Collection $items): float => round((float) $items->sum('amount'), 2));
+        $incomes = Income::query()
+            ->whereYear('received_on', $year)
+            ->get()
+            ->groupBy(fn (Income $income): int => $income->received_on->month)
+            ->map(fn (Collection $items): float => round((float) $items->sum('amount'), 2));
+        $expenses = Expense::query()
+            ->whereYear('incurred_on', $year)
+            ->get()
+            ->groupBy(fn (Expense $expense): int => $expense->incurred_on->month)
+            ->map(fn (Collection $items): float => round((float) $items->sum('amount'), 2));
+        $accumulated = 0.0;
+        $rows = collect(range(1, 12))->map(function (int $month) use ($year, $payments, $incomes, $expenses, &$accumulated): array {
+            $collections = (float) $payments->get($month, 0);
+            $otherIncome = (float) $incomes->get($month, 0);
+            $totalIncome = round($collections + $otherIncome, 2);
+            $totalExpense = (float) $expenses->get($month, 0);
+            $monthlyBalance = round($totalIncome - $totalExpense, 2);
+            $accumulated = round($accumulated + $monthlyBalance, 2);
+
+            return [
+                Carbon::create($year, $month, 1)->locale('es')->translatedFormat('F'),
+                $collections,
+                $otherIncome,
+                $totalIncome,
+                $totalExpense,
+                $monthlyBalance,
+                $accumulated,
+            ];
+        });
+        $totalCollections = round((float) $payments->sum(), 2);
+        $totalOtherIncome = round((float) $incomes->sum(), 2);
+        $totalExpense = round((float) $expenses->sum(), 2);
+        $totalIncome = round($totalCollections + $totalOtherIncome, 2);
+
+        return $this->document(
+            'Balance anual', "Ejercicio {$year}", "balance-anual-{$year}",
+            ['Mes', 'Cobros', 'Otros ingresos', 'Ingresos totales', 'Egresos', 'Saldo mensual', 'Saldo acumulado'], $rows->all(),
+            ['Total cobros' => $totalCollections, 'Otros ingresos' => $totalOtherIncome, 'Ingresos totales' => $totalIncome, 'Egresos totales' => $totalExpense, 'Saldo anual' => round($totalIncome - $totalExpense, 2)], [1, 2, 3, 4, 5, 6],
         );
     }
 
