@@ -1,0 +1,135 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\BillingPeriod;
+use App\Models\Connection;
+use App\Models\Invoice;
+use App\Models\LateFeeSetting;
+use App\Models\Rate;
+use App\Models\Setting;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
+
+final class BillingService
+{
+    /**
+     * Creates one monthly service charge per eligible connection. The method is
+     * idempotent, so it is safe to schedule and to run manually for recovery.
+     */
+    public function generateForMonth(CarbonInterface|string $month): int
+    {
+        $periodStart = Carbon::parse($month)->startOfMonth();
+        $periodEnd = $periodStart->copy()->endOfMonth();
+        $billingPeriod = BillingPeriod::query()->where('months', $this->paymentFrequency())->first();
+
+        if ($billingPeriod === null) {
+            return 0;
+        }
+
+        $created = 0;
+
+        $this->eligibleConnections()->each(function (Connection $connection) use ($periodStart, $periodEnd, $billingPeriod, &$created): void {
+            $usageTypeId = $this->usageTypeFor($connection, $periodStart, $periodEnd);
+
+            if ($usageTypeId === null) {
+                return;
+            }
+
+            $rate = $this->rateFor($usageTypeId, $periodStart, $periodEnd);
+
+            if ($rate === null) {
+                return;
+            }
+
+            $invoice = Invoice::query()->firstOrCreate(
+                [
+                    'connection_id' => $connection->getKey(),
+                    'period_starts_on' => $periodStart->toDateString(),
+                ],
+                [
+                    'billing_period_id' => $billingPeriod->getKey(),
+                    'issued_on' => $this->issueDate($periodStart)->toDateString(),
+                    'due_on' => $this->graceDeadline($periodStart)->toDateString(),
+                    'period_ends_on' => $periodEnd->toDateString(),
+                    'rate' => $rate->amount,
+                    'late_fee' => 0,
+                    'fines' => 0,
+                    'total' => $rate->amount,
+                    'status' => 'PENDING',
+                ],
+            );
+
+            if ($invoice->wasRecentlyCreated) {
+                $created++;
+            }
+        });
+
+        return $created;
+    }
+
+    public function paymentFrequency(): int
+    {
+        $months = (int) Setting::query()->where('key', 'billing_period_months')->value('value');
+
+        return in_array($months, [3, 6], true) ? $months : 3;
+    }
+
+    public function graceDeadline(CarbonInterface|string $month): Carbon
+    {
+        $periodStart = Carbon::parse($month)->startOfMonth();
+        $frequency = $this->paymentFrequency();
+        $cycleEndMonth = (int) (intdiv($periodStart->month - 1, $frequency) * $frequency) + $frequency;
+        $cycleEnd = $periodStart->copy()->month($cycleEndMonth)->endOfMonth();
+        $graceMonths = $this->activeLateFeeSetting($periodStart)?->grace_months ?? 1;
+
+        return $cycleEnd->addMonths(max(1, (int) $graceMonths))->endOfMonth();
+    }
+
+    private function issueDate(Carbon $periodStart): Carbon
+    {
+        $day = (int) Setting::query()->where('key', 'billing_issue_day')->value('value');
+
+        return $periodStart->copy()->day(min(28, max(1, $day ?: 28)));
+    }
+
+    private function eligibleConnections(): Collection
+    {
+        return Connection::query()
+            ->where('payment_mode', Connection::PAYMENT_FIXED)
+            ->whereHas('connectionStatus', fn ($query) => $query->whereIn('name', ['ACTIVE', 'ACTIVO']))
+            ->whereHas('property', fn ($query) => $query->where('active', true)
+                ->whereHas('customer.customerStatus', fn ($status) => $status->whereIn('name', ['ACTIVE', 'ACTIVO'])))
+            ->get();
+    }
+
+    private function usageTypeFor(Connection $connection, Carbon $periodStart, Carbon $periodEnd): ?int
+    {
+        return $connection->usageAssignments()
+            ->whereDate('starts_on', '<=', $periodEnd)
+            ->where(fn ($query) => $query->whereNull('ends_on')->orWhereDate('ends_on', '>=', $periodStart))
+            ->orderByDesc('starts_on')
+            ->value('usage_type_id');
+    }
+
+    private function rateFor(int $usageTypeId, Carbon $periodStart, Carbon $periodEnd): ?Rate
+    {
+        return Rate::query()
+            ->where('usage_type_id', $usageTypeId)
+            ->where('year', $periodStart->year)
+            ->whereDate('starts_on', '<=', $periodEnd)
+            ->where(fn ($query) => $query->whereNull('ends_on')->orWhereDate('ends_on', '>=', $periodStart))
+            ->orderByDesc('starts_on')
+            ->first();
+    }
+
+    private function activeLateFeeSetting(Carbon $date): ?LateFeeSetting
+    {
+        return LateFeeSetting::query()
+            ->whereDate('starts_on', '<=', $date)
+            ->where(fn ($query) => $query->whereNull('ends_on')->orWhereDate('ends_on', '>=', $date))
+            ->orderByDesc('starts_on')
+            ->first();
+    }
+}
