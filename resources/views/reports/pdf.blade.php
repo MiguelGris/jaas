@@ -6,7 +6,10 @@
         @page { margin: 20px 24px; }
         body { color: #1e293b; font-family: DejaVu Sans, sans-serif; font-size: 9px; }
         h1 { color: #0f172a; font-size: 18px; margin: 0 0 4px; }
+        h2 { color: #0f172a; font-size: 12px; margin: 0 0 6px; }
         .subtitle { color: #64748b; margin: 0 0 18px; }
+        .report-section { margin-bottom: 16px; }
+        .report-section:last-of-type { margin-bottom: 20px; }
         table { border-collapse: collapse; width: 100%; }
         th { background: #0369a1; color: white; font-size: 8px; padding: 7px 5px; text-align: left; }
         td { border-bottom: 1px solid #dbe3ed; padding: 6px 5px; vertical-align: top; }
@@ -20,6 +23,24 @@
 <body>
     <h1>{{ $report['title'] }}</h1>
     <p class="subtitle">{{ $report['subtitle'] }}</p>
+    @foreach ($report['intro_tables'] ?? [] as $table)
+        <section class="report-section">
+            <h2>{{ $table['title'] }}</h2>
+            <table>
+                <thead><tr>@foreach ($table['headers'] as $header)<th>{{ $header }}</th>@endforeach</tr></thead>
+                <tbody>
+                    @forelse ($table['rows'] as $row)
+                        <tr>@foreach ($row as $value)<td>{{ $value }}</td>@endforeach</tr>
+                    @empty
+                        <tr><td colspan="{{ count($table['headers']) }}">No hay datos para este resumen.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </section>
+    @endforeach
+    @if (($report['intro_tables'] ?? []) !== [])
+        <h2>Detalle de asistentes e inasistentes</h2>
+    @endif
     <table>
         <thead><tr>@foreach ($report['headers'] as $header)<th>{{ $header }}</th>@endforeach</tr></thead>
         <tbody>

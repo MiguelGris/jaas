@@ -175,6 +175,14 @@ final class JassResourceController extends Controller
             return response()->json(['message' => 'No puedes eliminar tu propia cuenta.'], 422);
         }
 
+        if ($resource === 'assembly-attendances') {
+            $model->attended = false;
+            $model->save();
+            $audit->updated($request->user(), $model, $before);
+
+            return response()->json(null, 204);
+        }
+
         try {
             if ($resource === 'meter-readings') {
                 app(MeterReadingService::class)->delete($model);

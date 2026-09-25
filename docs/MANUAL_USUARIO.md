@@ -134,7 +134,9 @@ Al crear una asamblea se define fecha, hora, tipo, lugar, importe por inasistenc
 
 ### Registro manual
 
-En **Asistencias** busca la asamblea y actualiza el estado de cada titular.
+En **Asistencias** busca la asamblea, elige **Editar** y marca o desmarca **Asistió**. Si la asamblea ya fue realizada, el sistema crea o retira automáticamente la multa correspondiente.
+
+Si un inasistente se corrige posteriormente como asistente, la multa pendiente se elimina. Si la multa ya fue cobrada, queda anulada como historial y el pago, el recibo y el saldo de caja no se modifican.
 
 ### Lector de DNI
 
@@ -146,7 +148,7 @@ En **Lector de asistencia**:
 4. El sistema extrae los 8 dígitos, registra al asistente y muestra su nombre.
 5. El campo queda listo para la siguiente lectura.
 
-Si se lee el mismo DNI otra vez, el sistema informa que ya estaba registrado.
+El nombre confirmado se muestra en tamaño grande. Debajo del lector aparece la lista acumulada de asistentes, la hora exacta de cada registro y el contador de avance con el formato **n de N registran asistencia**. Si se lee el mismo DNI otra vez, el sistema informa que ya estaba registrado.
 
 ### Cierre de la asamblea
 
@@ -174,7 +176,7 @@ La facturación automática por consumo medido aún no está habilitada. El prec
 
 Los reportes están disponibles en el panel y en la sección **Reportes** del menú. Pueden descargarse en Excel o abrirse como PDF directamente en el navegador.
 
-Incluyen flujo de caja mensual, balance anual, morosos, antigüedad de deuda, recaudación por medio, padrón de conexiones, asistencias e inasistencias y exonerados de faenas.
+Incluyen flujo de caja mensual, balance anual, morosos, antigüedad de deuda, recaudación por medio, padrón de conexiones, asistencias e inasistencias y exonerados de faenas. El reporte de asistencias comienza con un resumen general y otro por barrio antes del detalle nominal.
 
 Consulta las fórmulas y filtros en [Reportes e indicadores](REPORTES.md).
 

@@ -9,8 +9,8 @@ use App\Models\Customer;
 use App\Services\AuditService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\View\View;
 use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 final class AttendanceScannerController extends Controller
 {
@@ -25,10 +25,34 @@ final class AttendanceScannerController extends Controller
             ->where('status', 'SCHEDULED')
             ->orderBy('held_on')
             ->get();
+        $selectedAssemblyId = $request->integer('assembly');
+        $selectedAssembly = $assemblies->firstWhere('id', $selectedAssemblyId);
+        $attendees = collect();
+        $attendanceCount = 0;
+        $attendanceTotal = 0;
+
+        if ($selectedAssembly !== null) {
+            $attendanceQuery = AssemblyAttendance::query()
+                ->where('assembly_id', $selectedAssembly->getKey());
+            $attendanceTotal = (clone $attendanceQuery)->count();
+            $attendees = $attendanceQuery
+                ->where('attended', true)
+                ->with('customer')
+                ->orderByRaw('CASE WHEN attended_at IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('attended_at')
+                ->orderBy('id')
+                ->get()
+                ->values();
+            $attendanceCount = $attendees->count();
+        }
 
         return view('attendance.scanner', [
             'assemblies' => $assemblies,
-            'selectedAssemblyId' => $request->integer('assembly'),
+            'selectedAssemblyId' => $selectedAssemblyId,
+            'selectedAssembly' => $selectedAssembly,
+            'attendees' => $attendees,
+            'attendanceCount' => $attendanceCount,
+            'attendanceTotal' => $attendanceTotal,
         ]);
     }
 
@@ -88,6 +112,7 @@ final class AttendanceScannerController extends Controller
 
         return redirect()
             ->route('attendance.scanner', ['assembly' => $assembly->getKey()])
-            ->with('success', $message);
+            ->with('attendance_name', $name)
+            ->with('attendance_message', $message);
     }
 }

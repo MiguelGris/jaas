@@ -46,7 +46,7 @@ final class ReportController extends Controller
             : $this->pdf($document);
     }
 
-    /** @param array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>} $document */
+    /** @param array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>, intro_tables?: list<array{title: string, headers: list<string>, rows: list<list<string|int|float>>}>} $document */
     private function excel(array $document): StreamedResponse
     {
         $spreadsheet = new Spreadsheet;
@@ -57,9 +57,44 @@ final class ReportController extends Controller
         $sheet->setCellValue('A1', $document['title']);
         $sheet->mergeCells("A2:{$lastColumn}2");
         $sheet->setCellValue('A2', $document['subtitle']);
-        $sheet->fromArray([$document['headers']], null, 'A4');
-        $sheet->fromArray($document['rows'], null, 'A5');
-        $summaryRow = max(6, 5 + count($document['rows']) + 2);
+        $currentRow = 4;
+
+        foreach ($document['intro_tables'] ?? [] as $table) {
+            $titleRow = $currentRow;
+            $sheet->mergeCells("A{$titleRow}:{$lastColumn}{$titleRow}");
+            $sheet->setCellValue("A{$titleRow}", $table['title']);
+            $sheet->getStyle("A{$titleRow}:{$lastColumn}{$titleRow}")->getFont()->setBold(true)->setSize(11)->getColor()->setRGB('0F172A');
+            $sheet->getStyle("A{$titleRow}:{$lastColumn}{$titleRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E0F2FE');
+
+            $headerRow = ++$currentRow;
+            $sheet->fromArray([$table['headers']], null, "A{$headerRow}");
+            $sheet->getStyle("A{$headerRow}:".Coordinate::stringFromColumnIndex(count($table['headers'])).$headerRow)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+            $sheet->getStyle("A{$headerRow}:".Coordinate::stringFromColumnIndex(count($table['headers'])).$headerRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('0284C7');
+
+            if ($table['rows'] !== []) {
+                $sheet->fromArray($table['rows'], null, 'A'.($headerRow + 1));
+            }
+
+            $currentRow = $headerRow + max(1, count($table['rows'])) + 2;
+        }
+
+        if (($document['intro_tables'] ?? []) !== []) {
+            $sheet->mergeCells("A{$currentRow}:{$lastColumn}{$currentRow}");
+            $sheet->setCellValue("A{$currentRow}", 'Detalle de asistentes e inasistentes');
+            $sheet->getStyle("A{$currentRow}:{$lastColumn}{$currentRow}")->getFont()->setBold(true)->setSize(11)->getColor()->setRGB('0F172A');
+            $currentRow++;
+        }
+
+        $mainHeaderRow = $currentRow;
+        $mainDataRow = $mainHeaderRow + 1;
+        $mainDataLastRow = $mainDataRow + max(1, count($document['rows'])) - 1;
+        $sheet->fromArray([$document['headers']], null, "A{$mainHeaderRow}");
+
+        if ($document['rows'] !== []) {
+            $sheet->fromArray($document['rows'], null, "A{$mainDataRow}");
+        }
+
+        $summaryRow = $mainDataRow + count($document['rows']) + 2;
 
         foreach ($document['summary'] as $label => $value) {
             $sheet->setCellValue("A{$summaryRow}", $label);
@@ -69,17 +104,17 @@ final class ReportController extends Controller
 
         $sheet->getStyle("A1:{$lastColumn}1")->getFont()->setBold(true)->setSize(16)->getColor()->setRGB('0F172A');
         $sheet->getStyle("A1:{$lastColumn}2")->getFont()->setItalic(true)->getColor()->setRGB('475569');
-        $sheet->getStyle("A4:{$lastColumn}4")->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
-        $sheet->getStyle("A4:{$lastColumn}4")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('0369A1');
-        $sheet->getStyle("A1:{$lastColumn}".max(4, 4 + count($document['rows'])))->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
-        $sheet->freezePane('A5');
+        $sheet->getStyle("A{$mainHeaderRow}:{$lastColumn}{$mainHeaderRow}")->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle("A{$mainHeaderRow}:{$lastColumn}{$mainHeaderRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('0369A1');
+        $sheet->getStyle("A1:{$lastColumn}{$mainDataLastRow}")->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->freezePane("A{$mainDataRow}");
 
         foreach ($document['headers'] as $index => $_header) {
             $column = Coordinate::stringFromColumnIndex($index + 1);
             $sheet->getColumnDimension($column)->setAutoSize(true);
 
             if (in_array($index, $document['currency_columns'], true)) {
-                $sheet->getStyle("{$column}5:{$column}".(4 + max(1, count($document['rows']))))->getNumberFormat()->setFormatCode('"S/" #,##0.00');
+                $sheet->getStyle("{$column}{$mainDataRow}:{$column}{$mainDataLastRow}")->getNumberFormat()->setFormatCode('"S/" #,##0.00');
             }
         }
 
@@ -92,7 +127,7 @@ final class ReportController extends Controller
         );
     }
 
-    /** @param array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>} $document */
+    /** @param array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>, intro_tables?: list<array{title: string, headers: list<string>, rows: list<list<string|int|float>>}>} $document */
     private function pdf(array $document): Response
     {
         $options = new Options;

@@ -421,6 +421,16 @@ final class JassPageController extends Controller
             return back()->with('error', 'No puedes eliminar tu propia cuenta.');
         }
 
+        if ($resource === 'assembly-attendances') {
+            $model->attended = false;
+            $model->save();
+            $audit->updated($request->user(), $model, $before);
+
+            return redirect()
+                ->route('resources.index', ['resource' => $resource])
+                ->with('success', 'La asistencia se corrigió como inasistencia y la multa quedó sincronizada.');
+        }
+
         try {
             if ($resource === 'meter-readings') {
                 app(MeterReadingService::class)->delete($model);

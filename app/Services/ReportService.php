@@ -377,19 +377,74 @@ final class ReportService
             ->firstOrFail();
         $attendances = AssemblyAttendance::query()
             ->where('assembly_id', $assembly->getKey())
-            ->with('customer')
+            ->with('customer.properties.neighborhood')
             ->orderBy('customer_id')
             ->get();
-        $rows = $attendances->map(fn (AssemblyAttendance $attendance): array => [
-            $attendance->customer?->customer_code ?? '—', $attendance->customer?->national_id ?? '—',
-            trim(($attendance->customer?->last_name ?? '').', '.($attendance->customer?->first_name ?? '')),
-            $attendance->customer?->phone ?? '—', $attendance->attended ? 'Asistió' : 'Inasistente', $attendance->notes ?? '',
-        ]);
+        $attendanceData = $attendances->map(function (AssemblyAttendance $attendance): array {
+            $customer = $attendance->customer;
+            $property = $customer?->properties->firstWhere('active', true) ?? $customer?->properties->first();
+
+            return [
+                'attendance' => $attendance,
+                'neighborhood' => $property?->neighborhood?->name ?? 'Sin barrio',
+            ];
+        });
+        $rows = $attendanceData->map(function (array $data): array {
+            /** @var AssemblyAttendance $attendance */
+            $attendance = $data['attendance'];
+
+            return [
+                $attendance->customer?->customer_code ?? '—',
+                $attendance->customer?->national_id ?? '—',
+                trim(($attendance->customer?->last_name ?? '').', '.($attendance->customer?->first_name ?? '')),
+                $data['neighborhood'],
+                $attendance->customer?->phone ?? '—',
+                $attendance->attended ? 'Asistió' : 'Inasistente',
+                $attendance->notes ?? '',
+            ];
+        });
+        $total = $attendances->count();
+        $present = $attendances->where('attended', true)->count();
+        $absent = $total - $present;
+        $percentage = static fn (int $value, int $base): string => $base > 0
+            ? number_format(($value / $base) * 100, 2).' %'
+            : '0.00 %';
+        $neighborhoodRows = $attendanceData
+            ->groupBy('neighborhood')
+            ->map(function (Collection $items, string $neighborhood) use ($percentage): array {
+                $neighborhoodTotal = $items->count();
+                $neighborhoodPresent = $items->filter(
+                    fn (array $data): bool => $data['attendance']->attended
+                )->count();
+
+                return [
+                    $neighborhood,
+                    $neighborhoodTotal,
+                    $neighborhoodPresent,
+                    $neighborhoodTotal - $neighborhoodPresent,
+                    $percentage($neighborhoodPresent, $neighborhoodTotal),
+                ];
+            })
+            ->sortBy(fn (array $row): string => $row[0] === 'Sin barrio' ? 'zzzz-sin-barrio' : mb_strtolower($row[0]))
+            ->values()
+            ->all();
 
         return $this->document(
             'Asistentes e inasistentes', "{$assembly->assembly_code} - {$assembly->held_on->format('d/m/Y')}", 'asistencia-'.$assembly->assembly_code,
-            ['Código', 'DNI', 'Titular', 'Teléfono', 'Estado', 'Observaciones'], $rows->all(),
-            ['Asistentes' => $attendances->where('attended', true)->count(), 'Inasistentes' => $attendances->where('attended', false)->count()], [],
+            ['Código', 'DNI', 'Titular', 'Barrio', 'Teléfono', 'Estado', 'Observaciones'], $rows->all(),
+            [], [],
+            [
+                [
+                    'title' => 'Resumen general',
+                    'headers' => ['Convocados', 'Asistentes', 'Inasistentes', 'Porcentaje de asistencia'],
+                    'rows' => [[$total, $present, $absent, $percentage($present, $total)]],
+                ],
+                [
+                    'title' => 'Resumen por barrio',
+                    'headers' => ['Barrio', 'Convocados', 'Asistentes', 'Inasistentes', 'Porcentaje de asistencia'],
+                    'rows' => $neighborhoodRows,
+                ],
+            ],
         );
     }
 
@@ -430,9 +485,10 @@ final class ReportService
      * @param  list<list<string|int|float>>  $rows
      * @param  array<string, string|int|float>  $summary
      * @param  list<int>  $currencyColumns
-     * @return array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>}
+     * @param  list<array{title: string, headers: list<string>, rows: list<list<string|int|float>>}>  $introTables
+     * @return array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>, intro_tables: list<array{title: string, headers: list<string>, rows: list<list<string|int|float>>}>}
      */
-    private function document(string $title, string $subtitle, string $filename, array $headers, array $rows, array $summary, array $currencyColumns): array
+    private function document(string $title, string $subtitle, string $filename, array $headers, array $rows, array $summary, array $currencyColumns, array $introTables = []): array
     {
         return [
             'title' => $title,
@@ -442,6 +498,7 @@ final class ReportService
             'rows' => $rows,
             'summary' => $summary,
             'currency_columns' => $currencyColumns,
+            'intro_tables' => $introTables,
         ];
     }
 }
