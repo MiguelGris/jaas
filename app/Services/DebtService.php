@@ -48,16 +48,47 @@ final class DebtService
     }
 
     /**
+     * Return only debts that already place the customer in arrears. Service
+     * charges remain current through their due date; every unpaid fine counts
+     * as arrears from the moment it is generated.
+     *
+     * @return array{invoices: Collection<int, Invoice>, fines: Collection<int, Fine>, total: float}
+     */
+    public function delinquentForCustomer(Customer $customer, CarbonInterface|string|null $asOf = null): array
+    {
+        $date = Carbon::parse($asOf ?? now());
+        $pending = $this->pendingForCustomer($customer, $date);
+        $invoices = $pending['invoices']
+            ->filter(fn (Invoice $invoice): bool => $this->isInvoiceOverdue($invoice, $date))
+            ->values();
+        $fines = $pending['fines'];
+
+        return [
+            'invoices' => $invoices,
+            'fines' => $fines,
+            'total' => round($invoices->sum('balance_due') + $fines->sum('balance_due'), 2),
+        ];
+    }
+
+    /**
      * @return Collection<int, array{customer: Customer, invoices: Collection<int, Invoice>, fines: Collection<int, Fine>, total: float}>
      */
     public function debtors(CarbonInterface|string|null $asOf = null): Collection
     {
+        $date = Carbon::parse($asOf ?? now())->startOfDay();
+
         return Customer::query()
+            ->where(function ($query) use ($date): void {
+                $query->whereHas('properties.connections.invoices', fn ($invoiceQuery) => $invoiceQuery
+                    ->where('status', 'PENDING')
+                    ->whereDate('due_on', '<', $date))
+                    ->orWhereHas('fines', fn ($fineQuery) => $fineQuery->where('status', 'PENDING'));
+            })
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->get()
-            ->map(function (Customer $customer) use ($asOf): array {
-                $charges = $this->pendingForCustomer($customer, $asOf);
+            ->map(function (Customer $customer) use ($date): array {
+                $charges = $this->delinquentForCustomer($customer, $date);
 
                 return ['customer' => $customer, ...$charges];
             })
@@ -68,6 +99,17 @@ final class DebtService
     public function outstandingTotal(CarbonInterface|string|null $asOf = null): float
     {
         return round($this->debtors($asOf)->sum('total'), 2);
+    }
+
+    public function isInvoiceOverdue(Invoice $invoice, CarbonInterface|string|null $asOf = null): bool
+    {
+        if ($invoice->due_on === null) {
+            return false;
+        }
+
+        $date = Carbon::parse($asOf ?? now())->startOfDay();
+
+        return $invoice->due_on->copy()->startOfDay()->lt($date);
     }
 
     public function decorateInvoice(Invoice $invoice, CarbonInterface|string|null $asOf = null): Invoice

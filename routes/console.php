@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\BillingService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -9,6 +10,7 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('billing:generate-monthly')
-    ->monthlyOn(28, '00:05')
+    ->cron('5 */3 * * *')
     ->timezone('America/Lima')
+    ->when(fn (): bool => now('America/Lima')->day === app(BillingService::class)->issueDay())
     ->withoutOverlapping();

@@ -12,11 +12,11 @@ class JassAccessSeeder extends Seeder
     public function run(): void
     {
         foreach ([
-            'services.manage' => 'Manage service connections, meters and readings',
-            'cash.manage' => 'Manage income, expenses and cash closings',
-            'assemblies.manage' => 'Manage assemblies, attendance and fines',
+            'services.manage' => 'Administrar conexiones, medidores y lecturas',
+            'cash.manage' => 'Administrar ingresos, egresos y cierres de caja',
+            'assemblies.manage' => 'Administrar asambleas, asistencias y multas',
         ] as $name => $description) {
-            Permission::query()->firstOrCreate(['name' => $name], ['description' => $description]);
+            Permission::query()->updateOrCreate(['name' => $name], ['description' => $description]);
         }
 
         $permissions = Permission::query()->pluck('id', 'name');

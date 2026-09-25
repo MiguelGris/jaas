@@ -1,9 +1,11 @@
 <?php
 
-use App\Http\Controllers\Web\AuthenticatedSessionController;
 use App\Http\Controllers\Web\AttendanceScannerController;
+use App\Http\Controllers\Web\AuthenticatedSessionController;
 use App\Http\Controllers\Web\CollectionController;
+use App\Http\Controllers\Web\DelinquencyController;
 use App\Http\Controllers\Web\JassPageController;
+use App\Http\Controllers\Web\PasswordController;
 use App\Http\Controllers\Web\PublicDebtController;
 use App\Http\Controllers\Web\ReceiptController;
 use App\Http\Controllers\Web\ReportController;
@@ -25,8 +27,16 @@ Route::post('/salir', [AuthenticatedSessionController::class, 'destroy'])
     ->middleware('auth')
     ->name('logout');
 
+Route::middleware(['auth', 'active'])->group(function (): void {
+    Route::get('/mi-cuenta/contrasena', [PasswordController::class, 'edit'])->name('password.edit');
+    Route::put('/mi-cuenta/contrasena', [PasswordController::class, 'update'])
+        ->middleware('throttle:5,1')
+        ->name('password.update');
+});
+
 Route::middleware(['auth', 'active', 'permission:reports.view'])->group(function (): void {
     Route::get('/panel', [JassPageController::class, 'dashboard'])->name('dashboard');
+    Route::get('/morosidad', [DelinquencyController::class, 'index'])->name('delinquencies.index');
     Route::get('/reportes/{report}/{format}', [ReportController::class, 'download'])->name('reports.download');
 });
 
@@ -39,7 +49,12 @@ Route::get('/recibos/{payment}/imprimir', [ReceiptController::class, 'thermal'])
     ->middleware(['auth', 'active', 'permission:reports.view'])
     ->name('receipts.thermal');
 
-Route::middleware(['auth', 'active', 'permission:reports.view'])->prefix('asistencias')->name('attendance.')->group(function (): void {
+Route::middleware(['auth', 'active', 'permission:payments.create'])->group(function (): void {
+    Route::get('/recibos/{payment}/anular', [ReceiptController::class, 'annulForm'])->name('receipts.annul-form');
+    Route::patch('/recibos/{payment}/anular', [ReceiptController::class, 'annul'])->name('receipts.annul');
+});
+
+Route::middleware(['auth', 'active', 'permission:assemblies.manage'])->prefix('asistencias')->name('attendance.')->group(function (): void {
     Route::get('/lector', [AttendanceScannerController::class, 'create'])->name('scanner');
     Route::post('/lector', [AttendanceScannerController::class, 'store'])->name('scan');
 });

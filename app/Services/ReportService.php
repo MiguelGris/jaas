@@ -4,22 +4,22 @@ namespace App\Services;
 
 use App\Models\Assembly;
 use App\Models\AssemblyAttendance;
+use App\Models\Connection;
 use App\Models\Customer;
 use App\Models\Expense;
 use App\Models\Income;
 use App\Models\Payment;
 use App\Models\Setting;
+use App\Support\CatalogLabel;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 final class ReportService
 {
-    public function __construct(private readonly DebtService $debts)
-    {
-    }
+    public function __construct(private readonly DebtService $debts) {}
 
     /**
-     * @param array{month?: string|null, year?: int|string|null, assembly_id?: int|string|null} $filters
+     * @param  array{month?: string|null, year?: int|string|null, assembly_id?: int|string|null}  $filters
      * @return array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>}
      */
     public function build(string $report, array $filters = []): array
@@ -28,6 +28,9 @@ final class ReportService
             'cash-flow' => $this->cashFlow($filters['month'] ?? null),
             'annual-balance' => $this->annualBalance($filters['year'] ?? null),
             'debtors' => $this->debtors(),
+            'debt-aging' => $this->debtAging(),
+            'payment-methods' => $this->paymentMethods($filters['month'] ?? null),
+            'service-register' => $this->serviceRegister(),
             'attendance' => $this->attendance($filters['assembly_id'] ?? null),
             'work-exemptions' => $this->workExemptions(),
             default => abort(404),
@@ -41,7 +44,7 @@ final class ReportService
         $end = $period->copy()->endOfMonth();
         $entries = collect();
 
-        Payment::query()->with('customer')->whereBetween('paid_at', [$start, $end])->get()->each(function (Payment $payment) use ($entries): void {
+        Payment::query()->active()->with('customer')->whereBetween('paid_at', [$start, $end])->get()->each(function (Payment $payment) use ($entries): void {
             $customer = $payment->customer;
             $entries->push([
                 'date' => $payment->paid_at->toDateString(), 'type' => 'Cobro de cuota', 'code' => $payment->receipt_code,
@@ -51,13 +54,13 @@ final class ReportService
         });
         Income::query()->with('incomeType')->whereBetween('received_on', [$start, $end])->get()->each(function (Income $income) use ($entries): void {
             $entries->push([
-                'date' => $income->received_on->toDateString(), 'type' => $income->incomeType?->name ?? 'Ingreso', 'code' => $income->income_code,
+                'date' => $income->received_on->toDateString(), 'type' => CatalogLabel::value($income->incomeType?->name ?? 'Ingreso'), 'code' => $income->income_code,
                 'concept' => $income->concept ?? 'Ingreso registrado', 'income' => (float) $income->amount, 'expense' => 0.0,
             ]);
         });
         Expense::query()->with('expenseCategory')->whereBetween('incurred_on', [$start, $end])->get()->each(function (Expense $expense) use ($entries): void {
             $entries->push([
-                'date' => $expense->incurred_on->toDateString(), 'type' => $expense->expenseCategory?->name ?? 'Egreso', 'code' => $expense->expense_code,
+                'date' => $expense->incurred_on->toDateString(), 'type' => CatalogLabel::value($expense->expenseCategory?->name ?? 'Egreso'), 'code' => $expense->expense_code,
                 'concept' => $expense->concept ?? 'Egreso registrado', 'income' => 0.0, 'expense' => (float) $expense->amount,
             ]);
         });
@@ -82,6 +85,7 @@ final class ReportService
     {
         $year = (int) ($selectedYear ?: now()->year);
         $payments = Payment::query()
+            ->active()
             ->whereYear('paid_at', $year)
             ->get()
             ->groupBy(fn (Payment $payment): int => $payment->paid_at->month)
@@ -140,10 +144,143 @@ final class ReportService
         });
 
         return $this->document(
-            'Lista de morosos', 'Deudas pendientes al '.now()->format('d/m/Y'), 'morosos-'.now()->format('Y-m-d'),
-            ['Código', 'DNI', 'Titular', 'Teléfono', 'Cuotas', 'Multas', 'Deuda total'], $rows->all(),
-            ['Morosos' => $rows->count(), 'Deuda por cobrar' => round($rows->sum(6), 2)], [6],
+            'Lista de morosos', 'Cuotas vencidas y multas pendientes al '.now()->format('d/m/Y'), 'morosos-'.now()->format('Y-m-d'),
+            ['Código', 'DNI', 'Titular', 'Teléfono', 'Cuotas vencidas', 'Multas', 'Deuda morosa'], $rows->all(),
+            ['Morosos' => $rows->count(), 'Deuda morosa total' => round($rows->sum(6), 2)], [6],
         );
+    }
+
+    private function debtAging(): array
+    {
+        $asOf = now()->startOfDay();
+        $rows = $this->debts->debtors($asOf)
+            ->flatMap(function (array $debtor) use ($asOf): Collection {
+                /** @var Customer $customer */
+                $customer = $debtor['customer'];
+                $identity = [
+                    $customer->customer_code,
+                    $customer->national_id ?? '—',
+                    trim($customer->last_name.', '.$customer->first_name),
+                ];
+                $invoiceRows = $debtor['invoices']->map(function ($invoice) use ($identity, $asOf): array {
+                    $days = (int) $invoice->due_on->copy()->startOfDay()->diffInDays($asOf);
+
+                    return [
+                        ...$identity,
+                        'Cuota vencida',
+                        $invoice->invoice_code,
+                        $invoice->due_on->format('d/m/Y'),
+                        $days,
+                        $this->agingBucket($days),
+                        (float) $invoice->balance_due,
+                    ];
+                });
+                $fineRows = $debtor['fines']->map(function ($fine) use ($identity, $asOf): array {
+                    $days = $fine->generated_on === null
+                        ? 0
+                        : max(0, (int) $fine->generated_on->copy()->startOfDay()->diffInDays($asOf));
+
+                    return [
+                        ...$identity,
+                        'Multa pendiente',
+                        $fine->fine_code,
+                        $fine->generated_on?->format('d/m/Y') ?? '—',
+                        $days,
+                        $this->agingBucket($days),
+                        (float) $fine->balance_due,
+                    ];
+                });
+
+                return $invoiceRows->concat($fineRows);
+            })
+            ->sortByDesc(6)
+            ->values();
+
+        $bucketAmount = fn (string $bucket): float => round((float) $rows->where(7, $bucket)->sum(8), 2);
+
+        return $this->document(
+            'Antigüedad de la deuda morosa', 'Cuotas vencidas y multas pendientes al '.$asOf->format('d/m/Y'), 'antiguedad-deuda-'.$asOf->format('Y-m-d'),
+            ['Código', 'DNI', 'Titular', 'Tipo', 'Documento', 'Fecha de mora', 'Días', 'Antigüedad', 'Saldo'], $rows->all(),
+            [
+                'Deuda total' => round((float) $rows->sum(8), 2),
+                'Deuda de 0 a 30 días' => $bucketAmount('0 a 30 días'),
+                'Deuda de 31 a 60 días' => $bucketAmount('31 a 60 días'),
+                'Deuda de 61 a 90 días' => $bucketAmount('61 a 90 días'),
+                'Deuda de más de 90 días' => $bucketAmount('Más de 90 días'),
+            ],
+            [8],
+        );
+    }
+
+    private function paymentMethods(?string $month): array
+    {
+        $period = Carbon::createFromFormat('Y-m', $month ?: now()->format('Y-m'))->startOfMonth();
+        $payments = Payment::query()
+            ->active()
+            ->with('paymentMethod')
+            ->whereBetween('paid_at', [$period->copy()->startOfMonth(), $period->copy()->endOfMonth()])
+            ->get();
+        $total = round((float) $payments->sum('amount'), 2);
+        $rows = $payments
+            ->groupBy(fn (Payment $payment): string => CatalogLabel::value($payment->paymentMethod?->name ?? 'Sin especificar'))
+            ->map(function (Collection $items, string $method) use ($total): array {
+                $amount = round((float) $items->sum('amount'), 2);
+
+                return [$method, $items->count(), $amount, $total > 0 ? round(($amount / $total) * 100, 2).' %' : '0 %'];
+            })
+            ->sortByDesc(2)
+            ->values();
+
+        return $this->document(
+            'Recaudación por medio de pago', $period->translatedFormat('F Y'), 'recaudacion-medios-'.$period->format('Y-m'),
+            ['Medio de pago', 'Operaciones', 'Recaudado', 'Participación'], $rows->all(),
+            ['Pagos registrados' => $payments->count(), 'Cobros totales' => $total], [2],
+        );
+    }
+
+    private function serviceRegister(): array
+    {
+        $connections = Connection::query()
+            ->with(['property.customer', 'connectionType', 'connectionStatus', 'meters'])
+            ->orderBy('supply_code')
+            ->get();
+        $rows = $connections->map(function (Connection $connection): array {
+            $customer = $connection->property?->customer;
+            $meter = $connection->meters->firstWhere('active', true);
+
+            return [
+                $connection->supply_code,
+                $customer?->customer_code ?? '—',
+                $customer?->national_id ?? '—',
+                $customer ? trim($customer->last_name.', '.$customer->first_name) : '—',
+                $connection->property?->property_code ?? '—',
+                $connection->property?->address ?? '—',
+                CatalogLabel::value($connection->connectionType?->name ?? '—'),
+                CatalogLabel::value($connection->payment_mode),
+                CatalogLabel::value($connection->connectionStatus?->name ?? '—'),
+                $meter?->meter_number ?? '—',
+            ];
+        });
+
+        return $this->document(
+            'Padrón de conexiones', 'Clientes, predios y servicios registrados al '.now()->format('d/m/Y'), 'padron-conexiones-'.now()->format('Y-m-d'),
+            ['Suministro', 'Cliente', 'DNI', 'Titular', 'Predio', 'Dirección', 'Servicio', 'Cobro', 'Estado', 'Medidor'], $rows->all(),
+            [
+                'Conexiones registradas' => $connections->count(),
+                'Conexiones con pago fijo' => $connections->where('payment_mode', Connection::PAYMENT_FIXED)->count(),
+                'Conexiones con medidor' => $connections->where('payment_mode', Connection::PAYMENT_METERED)->count(),
+            ], [],
+        );
+    }
+
+    private function agingBucket(int $days): string
+    {
+        return match (true) {
+            $days <= 30 => '0 a 30 días',
+            $days <= 60 => '31 a 60 días',
+            $days <= 90 => '61 a 90 días',
+            default => 'Más de 90 días',
+        };
     }
 
     private function attendance(int|string|null $assemblyId): array
@@ -203,10 +340,10 @@ final class ReportService
     }
 
     /**
-     * @param list<string> $headers
-     * @param list<list<string|int|float>> $rows
-     * @param array<string, string|int|float> $summary
-     * @param list<int> $currencyColumns
+     * @param  list<string>  $headers
+     * @param  list<list<string|int|float>>  $rows
+     * @param  array<string, string|int|float>  $summary
+     * @param  list<int>  $currencyColumns
      * @return array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>}
      */
     private function document(string $title, string $subtitle, string $filename, array $headers, array $rows, array $summary, array $currencyColumns): array

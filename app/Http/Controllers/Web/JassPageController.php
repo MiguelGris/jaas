@@ -34,14 +34,17 @@ use App\Models\Role;
 use App\Models\Setting;
 use App\Models\UsageType;
 use App\Models\User;
+use App\Services\AuditService;
+use App\Services\CashService;
 use App\Services\DebtService;
 use App\Services\MeterReadingService;
 use App\Services\ReportService;
-use App\Services\AuditService;
+use App\Support\CatalogLabel;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -66,12 +69,13 @@ final class JassPageController extends Controller
         return array_keys(self::definitions());
     }
 
-    public function dashboard(ReportService $reports, DebtService $debts): View
+    public function dashboard(ReportService $reports, DebtService $debts, CashService $cash): View
     {
         $today = now();
         $startOfMonth = $today->copy()->startOfMonth();
         $endOfMonth = $today->copy()->endOfMonth();
-        $monthlyCollection = (float) Payment::query()->whereBetween('paid_at', [$startOfMonth, $endOfMonth])->sum('amount');
+        $monthlyCollection = (float) Payment::query()->active()->whereBetween('paid_at', [$startOfMonth, $endOfMonth])->sum('amount');
+        $monthlyIncome = (float) Income::query()->whereBetween('received_on', [$startOfMonth, $endOfMonth])->sum('amount');
         $monthlyExpenses = (float) Expense::query()->whereBetween('incurred_on', [$startOfMonth, $endOfMonth])->sum('amount');
         $debtors = $debts->debtors();
         $upcomingAssemblies = Assembly::query()
@@ -80,15 +84,14 @@ final class JassPageController extends Controller
             ->orderBy('held_on');
         $nextAssembly = (clone $upcomingAssemblies)->first();
         $upcomingAssemblyCount = $upcomingAssemblies->count();
-        $dailyPaymentQuery = Payment::query()->whereDate('paid_at', $today->toDateString());
+        $dailyPaymentQuery = Payment::query()->active()->whereDate('paid_at', $today->toDateString());
         $dailyPaymentCount = (clone $dailyPaymentQuery)->count();
         $dailyPaymentAmount = (float) $dailyPaymentQuery->sum('amount');
-
         $metrics = [
             ['label' => 'Clientes', 'model' => Customer::class, 'resource' => 'customers', 'accent' => 'sky'],
             ['label' => 'Conexiones', 'model' => Connection::class, 'resource' => 'connections', 'accent' => 'violet'],
-            ['label' => 'Cuotas pendientes', 'model' => Invoice::class, 'resource' => 'invoices', 'accent' => 'amber', 'pending' => true],
-            ['label' => 'Morosos', 'value' => $debtors->count(), 'detail' => 'S/ '.number_format((float) $debtors->sum('total'), 2).' por cobrar', 'resource' => 'invoices', 'accent' => 'amber'],
+            ['label' => 'Cuotas pendientes', 'model' => Invoice::class, 'resource' => 'invoices', 'query' => ['state' => 'pending'], 'accent' => 'amber', 'pending' => true],
+            ['label' => 'Morosos', 'value' => $debtors->count(), 'detail' => 'S/ '.number_format((float) $debtors->sum('total'), 2).' vencidos', 'route_name' => 'delinquencies.index', 'accent' => 'amber'],
             ['label' => 'Próximas asambleas', 'value' => $upcomingAssemblyCount, 'detail' => $nextAssembly ? 'Próxima: '.$nextAssembly->held_on->format('d/m/Y') : 'No hay asambleas programadas', 'resource' => 'assemblies', 'accent' => 'violet'],
             ['label' => 'Pagos del día', 'value' => $dailyPaymentCount, 'detail' => 'S/ '.number_format($dailyPaymentAmount, 2).' recaudados hoy', 'resource' => 'payments', 'accent' => 'emerald'],
         ];
@@ -108,19 +111,22 @@ final class JassPageController extends Controller
         }
         unset($metric);
 
-        $cashBalance = (float) Payment::query()->sum('amount')
-            + (float) Income::query()->sum('amount')
-            - (float) Expense::query()->sum('amount');
+        $cashSummary = $cash->currentBalance();
+        $cashBalanceDetail = $cashSummary['last_closing'] === null
+            ? 'Cobros e ingresos menos gastos'
+            : 'Cierre de '.str_pad((string) $cashSummary['last_closing']->month, 2, '0', STR_PAD_LEFT).'/'.$cashSummary['last_closing']->year.' más movimientos posteriores';
         $financialMetrics = [
+            ['label' => 'Saldo en caja', 'value' => $cashSummary['balance'], 'detail' => $cashBalanceDetail, 'format' => 'currency', 'accent' => 'sky', 'resource' => 'cash-closings', 'wide' => true],
             ['label' => 'Recaudación del mes', 'value' => $monthlyCollection, 'format' => 'currency', 'accent' => 'emerald', 'resource' => 'payments'],
+            ['label' => 'Ingresos del mes', 'value' => $monthlyIncome, 'detail' => 'Ingresos adicionales a la recaudación', 'format' => 'currency', 'accent' => 'sky', 'resource' => 'incomes'],
             ['label' => 'Gastos del mes', 'value' => $monthlyExpenses, 'format' => 'currency', 'accent' => 'rose', 'resource' => 'expenses'],
-            ['label' => 'Saldo en caja', 'value' => $cashBalance, 'detail' => 'Cobros e ingresos menos gastos', 'format' => 'currency', 'accent' => 'sky', 'resource' => 'cash-closings'],
         ];
 
         $movements = Payment::query()
+            ->active()
             ->with(['customer', 'invoice.connection.property.customer'])
             ->latest('paid_at')
-            ->limit(8)
+            ->limit(5)
             ->get()
             ->map(function (Payment $payment): array {
                 $customer = $payment->customer ?? $payment->invoice?->connection?->property?->customer;
@@ -134,30 +140,30 @@ final class JassPageController extends Controller
                     'direction' => 'income',
                 ];
             })
-            ->concat(Income::query()->with('incomeType')->latest('received_on')->limit(8)->get()->map(fn (Income $income): array => [
+            ->concat(Income::query()->with('incomeType')->latest('received_on')->limit(5)->get()->map(fn (Income $income): array => [
                 'occurred_at' => $income->received_on,
                 'type' => 'Ingreso',
                 'code' => $income->income_code,
-                'concept' => $income->concept ?: ($income->incomeType?->name ?? 'Ingreso registrado'),
+                'concept' => $income->concept ?: CatalogLabel::value($income->incomeType?->name ?? 'Ingreso registrado'),
                 'amount' => (float) $income->amount,
                 'direction' => 'income',
             ]))
-            ->concat(Expense::query()->with('expenseCategory')->latest('incurred_on')->limit(8)->get()->map(fn (Expense $expense): array => [
+            ->concat(Expense::query()->with('expenseCategory')->latest('incurred_on')->limit(5)->get()->map(fn (Expense $expense): array => [
                 'occurred_at' => $expense->incurred_on,
                 'type' => 'Gasto',
                 'code' => $expense->expense_code,
-                'concept' => $expense->concept ?: ($expense->expenseCategory?->name ?? 'Gasto registrado'),
+                'concept' => $expense->concept ?: CatalogLabel::value($expense->expenseCategory?->name ?? 'Gasto registrado'),
                 'amount' => (float) $expense->amount,
                 'direction' => 'expense',
             ]))
             ->sortByDesc('occurred_at')
-            ->take(8)
+            ->take(5)
             ->values();
 
         $recentInvoices = Invoice::query()
             ->with(['connection.property.customer'])
             ->orderByDesc('issued_on')
-            ->limit(6)
+            ->limit(5)
             ->get();
 
         $assemblies = Assembly::query()->orderByDesc('held_on')->limit(30)->get();
@@ -171,6 +177,32 @@ final class JassPageController extends Controller
         $columns = $this->columns($definition);
         $records = $this->query($definition);
         $paymentFilters = ['q' => '', 'from' => '', 'to' => ''];
+        $invoiceState = '';
+
+        if ($resource === 'invoices') {
+            $filters = $request->validate([
+                'state' => ['nullable', Rule::in(['pending', 'overdue', 'paid', 'cancelled'])],
+            ]);
+            $invoiceState = (string) ($filters['state'] ?? '');
+
+            match ($invoiceState) {
+                'pending' => $records->where('status', 'PENDING'),
+                'overdue' => $records
+                    ->where('status', 'PENDING')
+                    ->whereDate('due_on', '<', now()->toDateString()),
+                'paid' => $records->where('status', 'PAID'),
+                'cancelled' => $records->where('status', 'CANCELLED'),
+                default => null,
+            };
+
+            $definition['label'] = match ($invoiceState) {
+                'pending' => 'Cuotas pendientes',
+                'overdue' => 'Cuotas vencidas',
+                'paid' => 'Cuotas pagadas',
+                'cancelled' => 'Cuotas anuladas',
+                default => $definition['label'],
+            };
+        }
 
         if ($resource === 'payments') {
             $filters = $request->validate([
@@ -215,12 +247,36 @@ final class JassPageController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        return view('resources.index', compact('resource', 'definition', 'columns', 'records', 'paymentFilters'));
+        return view('resources.index', compact('resource', 'definition', 'columns', 'records', 'paymentFilters', 'invoiceState'));
     }
 
-    public function create(string $resource): View
+    public function create(Request $request, string $resource): View
     {
         $definition = $this->writableDefinition($resource);
+
+        if ($resource === 'cash-closings') {
+            $defaultPeriod = now()->subMonthNoOverflow()->startOfMonth();
+            $period = [
+                'year' => $request->query('year', $defaultPeriod->year),
+                'month' => $request->query('month', $defaultPeriod->month),
+            ];
+            $validator = validator($period, [
+                'year' => ['required', 'integer', 'between:2000,2100'],
+                'month' => ['required', 'integer', 'between:1,12'],
+            ]);
+            $summary = null;
+            $previewErrors = $validator->errors();
+
+            if (! $validator->fails()) {
+                try {
+                    $summary = app(CashService::class)->preview((int) $period['year'], (int) $period['month']);
+                } catch (ValidationException $exception) {
+                    $previewErrors->merge($exception->errors());
+                }
+            }
+
+            return view('cash-closings.create', compact('resource', 'definition', 'period', 'summary', 'previewErrors'));
+        }
 
         return view('resources.form', [
             'resource' => $resource,
@@ -236,6 +292,23 @@ final class JassPageController extends Controller
         $this->normalizeTimeFields($request, $definition);
         $attributes = $request->validate($this->rules($definition));
         $audit = app(AuditService::class);
+
+        $this->ensureCashMovementIsOpen($resource, $attributes);
+
+        if (in_array($resource, ['incomes', 'expenses'], true)) {
+            $attributes['user_id'] = $request->user()?->getKey();
+        }
+
+        if ($resource === 'cash-closings') {
+            $user = $request->user();
+            abort_if($user === null, 403);
+            $record = app(CashService::class)->close((int) $attributes['year'], (int) $attributes['month'], $user);
+            $audit->created($user, $record);
+
+            return redirect()
+                ->route('resources.show', ['resource' => $resource, 'record' => $record->getKey()])
+                ->with('success', 'Cierre registrado. Saldo que se deja: S/ '.number_format((float) $record->balance, 2).'.');
+        }
 
         if ($resource === 'meters') {
             $this->ensureMeterCanBeAssigned($attributes);
@@ -269,6 +342,7 @@ final class JassPageController extends Controller
     public function edit(string $resource, string $record): View
     {
         $definition = $this->writableDefinition($resource);
+        abort_if($definition['immutable'] ?? false, 403, 'Este registro contable no se puede editar.');
 
         return view('resources.form', [
             'resource' => $resource,
@@ -281,11 +355,25 @@ final class JassPageController extends Controller
     public function update(Request $request, string $resource, string $record): RedirectResponse
     {
         $definition = $this->writableDefinition($resource);
+        abort_if($definition['immutable'] ?? false, 403, 'Este registro contable no se puede editar.');
         $this->normalizeTimeFields($request, $definition);
         $model = $this->find($definition, $record);
-        $attributes = $request->validate($this->rules($definition, true));
+        $attributes = $request->validate($this->rules($definition, true, $model->getKey()));
+        $this->ensureCashMovementIsOpen($resource, $attributes, $model);
         $audit = app(AuditService::class);
         $before = $audit->snapshot($model);
+
+        if ($resource === 'users' && ($attributes['password'] ?? null) === null) {
+            unset($attributes['password']);
+        }
+
+        if ($resource === 'users' && $model->is($request->user()) && array_key_exists('active', $attributes) && ! $attributes['active']) {
+            throw ValidationException::withMessages([
+                'active' => 'No puedes desactivar tu propia cuenta.',
+            ]);
+        }
+
+        $passwordChanged = $resource === 'users' && array_key_exists('password', $attributes);
 
         if ($resource === 'connections') {
             $this->ensureConnectionCanUsePaymentMode($model, $attributes);
@@ -304,18 +392,27 @@ final class JassPageController extends Controller
             }
         }
         $audit->updated($request->user(), $model, $before);
+        if ($passwordChanged) {
+            $audit->passwordChanged($request->user(), $model);
+        }
 
         return redirect()
             ->route('resources.show', ['resource' => $resource, 'record' => $model->getKey()])
             ->with('success', $definition['singular'].' actualizado correctamente.');
     }
 
-    public function destroy(string $resource, string $record): RedirectResponse
+    public function destroy(Request $request, string $resource, string $record): RedirectResponse
     {
         $definition = $this->writableDefinition($resource);
+        abort_if($definition['immutable'] ?? false, 403, 'Este registro contable no se puede eliminar.');
         $model = $this->find($definition, $record);
+        $this->ensureCashMovementIsOpen($resource, [], $model);
         $audit = app(AuditService::class);
         $before = $audit->snapshot($model);
+
+        if ($resource === 'users' && $model->is($request->user())) {
+            return back()->with('error', 'No puedes eliminar tu propia cuenta.');
+        }
 
         try {
             if ($resource === 'meter-readings') {
@@ -331,6 +428,30 @@ final class JassPageController extends Controller
         return redirect()
             ->route('resources.index', ['resource' => $resource])
             ->with('success', $definition['singular'].' eliminado correctamente.');
+    }
+
+    /** @param array<string, mixed> $attributes */
+    private function ensureCashMovementIsOpen(string $resource, array $attributes, ?Model $model = null): void
+    {
+        $dateField = match ($resource) {
+            'incomes' => 'received_on',
+            'expenses' => 'incurred_on',
+            default => null,
+        };
+
+        if ($dateField === null) {
+            return;
+        }
+
+        $cash = app(CashService::class);
+
+        if ($model !== null) {
+            $cash->ensureMovementDateIsOpen($model->getAttribute($dateField), $dateField);
+        }
+
+        if (array_key_exists($dateField, $attributes)) {
+            $cash->ensureMovementDateIsOpen($attributes[$dateField], $dateField);
+        }
     }
 
     /** @param array<string, mixed> $attributes */
@@ -416,16 +537,19 @@ final class JassPageController extends Controller
                 'assemblies',
                 'assembly-attendances',
                 'fines',
-                ['label' => 'Lector de asistencia', 'route_name' => 'attendance.scanner', 'active' => 'attendance.*', 'permission' => 'reports.view'],
+                ['label' => 'Lector de asistencia', 'route_name' => 'attendance.scanner', 'active' => 'attendance.*', 'permission' => 'assemblies.manage'],
             ],
             'Reportes' => [
                 ['label' => 'Flujo de caja mensual', 'route_name' => 'dashboard', 'fragment' => 'reporte-flujo-caja', 'permission' => 'reports.view'],
                 ['label' => 'Balance anual', 'route_name' => 'dashboard', 'fragment' => 'reporte-balance-anual', 'permission' => 'reports.view'],
-                ['label' => 'Lista de morosos', 'route_name' => 'dashboard', 'fragment' => 'reporte-morosos', 'permission' => 'reports.view'],
+                ['label' => 'Lista de morosos', 'route_name' => 'delinquencies.index', 'active' => 'delinquencies.*', 'permission' => 'reports.view'],
+                ['label' => 'Antigüedad de deuda', 'route_name' => 'dashboard', 'fragment' => 'reporte-antiguedad-deuda', 'permission' => 'reports.view'],
+                ['label' => 'Recaudación por medio', 'route_name' => 'dashboard', 'fragment' => 'reporte-medios-pago', 'permission' => 'reports.view'],
+                ['label' => 'Padrón de conexiones', 'route_name' => 'dashboard', 'fragment' => 'reporte-padron-conexiones', 'permission' => 'reports.view'],
                 ['label' => 'Asistencias', 'route_name' => 'dashboard', 'fragment' => 'reporte-asistencias', 'permission' => 'reports.view'],
                 ['label' => 'Exonerados de faenas', 'route_name' => 'dashboard', 'fragment' => 'reporte-exonerados', 'permission' => 'reports.view'],
             ],
-            'Administración' => ['settings', 'roles', 'permissions', 'audit-logs'],
+            'Administración' => ['users', 'settings', 'roles', 'permissions', 'audit-logs'],
             'Catálogos' => ['customer-statuses', 'neighborhoods', 'connection-types', 'connection-statuses', 'usage-types', 'payment-methods', 'assembly-types', 'income-types', 'expense-categories'],
         ];
         $definitions = self::definitions();
@@ -467,7 +591,7 @@ final class JassPageController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $definition
+     * @param  array<string, mixed>  $definition
      */
     private function writableDefinition(string $resource): array
     {
@@ -491,7 +615,7 @@ final class JassPageController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $definition
+     * @param  array<string, mixed>  $definition
      */
     private function query(array $definition)
     {
@@ -499,7 +623,7 @@ final class JassPageController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $definition
+     * @param  array<string, mixed>  $definition
      */
     private function find(array $definition, string $id): Model
     {
@@ -507,7 +631,7 @@ final class JassPageController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $definition
+     * @param  array<string, mixed>  $definition
      * @return class-string<Model>
      */
     private function modelClass(array $definition): string
@@ -516,7 +640,7 @@ final class JassPageController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $definition
+     * @param  array<string, mixed>  $definition
      * @return list<string>
      */
     private function relations(array $definition): array
@@ -529,7 +653,7 @@ final class JassPageController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $definition
+     * @param  array<string, mixed>  $definition
      * @return array<string, array<string, string>>
      */
     private function options(array $definition): array
@@ -543,6 +667,7 @@ final class JassPageController extends Controller
 
             if (isset($field['choices'])) {
                 $options[$name] = $field['choices'];
+
                 continue;
             }
 
@@ -557,7 +682,7 @@ final class JassPageController extends Controller
      * Relation choices carry enough context to distinguish records in a large
      * list. Generic labels are retained for simple catalog tables.
      *
-     * @param class-string<Model> $model
+     * @param  class-string<Model>  $model
      * @return array<int, string>
      */
     private function optionLabels(string $model, string $fallbackLabel): array
@@ -608,18 +733,26 @@ final class JassPageController extends Controller
                 ->all();
         }
 
+        if ($model === Role::class) {
+            return Role::query()
+                ->orderBy('name')
+                ->get()
+                ->mapWithKeys(static fn (Role $role): array => [$role->id => self::roleLabel($role->name)])
+                ->all();
+        }
+
         return $model::query()
             ->orderBy($fallbackLabel)
             ->pluck($fallbackLabel, 'id')
-            ->map(static fn (mixed $label): string => (string) $label)
+            ->map(static fn (mixed $label): string => self::catalogValueLabel($label))
             ->all();
     }
 
     /**
-     * @param array<string, mixed> $definition
+     * @param  array<string, mixed>  $definition
      * @return array<string, string|list<string>>
      */
-    private function rules(array $definition, bool $updating = false): array
+    private function rules(array $definition, bool $updating = false, int|string|null $ignoreId = null): array
     {
         $rules = [];
 
@@ -628,7 +761,8 @@ final class JassPageController extends Controller
                 continue;
             }
 
-            $fieldRules = [($field['required'] && !$updating) ? 'required' : 'nullable'];
+            $isRequired = $field['required'] && ! ($updating && ($field['optional_on_update'] ?? false));
+            $fieldRules = [$isRequired ? 'required' : 'nullable'];
 
             switch ($field['type']) {
                 case 'select':
@@ -644,9 +778,12 @@ final class JassPageController extends Controller
                     $fieldRules[] = 'boolean';
                     break;
                 case 'number':
-                    $fieldRules[] = 'numeric';
+                    $fieldRules[] = ($field['integer'] ?? false) ? 'integer' : 'numeric';
                     if (isset($field['min'])) {
                         $fieldRules[] = 'min:'.$field['min'];
+                    }
+                    if (isset($field['max_value'])) {
+                        $fieldRules[] = 'max:'.$field['max_value'];
                     }
                     break;
                 case 'date':
@@ -673,6 +810,15 @@ final class JassPageController extends Controller
                 $fieldRules[] = 'max:'.$field['max'];
             }
 
+            if ($field['unique'] ?? false) {
+                $model = new ($definition['model']);
+                $unique = Rule::unique($model->getTable(), $name);
+                if ($ignoreId !== null) {
+                    $unique->ignore($ignoreId);
+                }
+                $fieldRules[] = $unique;
+            }
+
             $rules[$name] = $fieldRules;
         }
 
@@ -680,7 +826,7 @@ final class JassPageController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $definition
+     * @param  array<string, mixed>  $definition
      * @return array<string, array<string, mixed>>
      */
     private function columns(array $definition): array
@@ -752,7 +898,7 @@ final class JassPageController extends Controller
             ], ['meter_id', 'read_on', 'previous_reading', 'current_reading', 'consumption', 'user_id']),
             'rates' => self::resource('Tarifas', 'Tarifa', Rate::class, [
                 'usage_type_id' => self::select('Tipo de uso', UsageType::class, 'usageType'),
-                'year' => self::number('Año', true, 2000),
+                'year' => self::integerNumber('Año', true, 2000, 2100),
                 'amount' => self::number('Importe fijo mensual', true, 0),
                 'metered_unit_price' => self::number('Precio por m³ (medidor)', false, 0),
                 'starts_on' => self::date('Vigente desde'),
@@ -761,17 +907,17 @@ final class JassPageController extends Controller
                 'notes' => self::textarea('Notas', false),
             ], ['usage_type_id', 'year', 'amount', 'metered_unit_price', 'starts_on', 'approved_by_assembly']),
             'billing-periods' => self::resource('Ciclos de pago', 'Ciclo de pago', BillingPeriod::class, [
-                'months' => self::number('Meses', true, 1),
+                'months' => self::integerNumber('Meses', true, 1, 120),
                 'description' => self::text('Descripción', false, 100),
             ], ['months', 'description']),
             'late-fee-settings' => self::resource('Configuración de mora', 'Configuración de mora', LateFeeSetting::class, [
                 'monthly_amount' => self::number('Monto mensual', true, 0),
-                'grace_months' => self::number('Meses de gracia', true, 1),
+                'grace_months' => self::integerNumber('Meses de gracia', true, 1, 12),
                 'starts_on' => self::date('Inicio de vigencia'),
                 'ends_on' => self::date('Fin de vigencia', false),
             ], ['monthly_amount', 'grace_months', 'starts_on', 'ends_on']),
             'invoices' => self::resource('Cuotas mensuales', 'Cuota mensual', Invoice::class, [
-                'invoice_code' => self::code('Código de factura'),
+                'invoice_code' => self::code('Código de cuota'),
                 'connection_id' => self::select('Conexión', Connection::class, 'connection', true, 'supply_code'),
                 'billing_period_id' => self::select('Periodo de cobro', BillingPeriod::class, 'billingPeriod', true, 'description'),
                 'issued_on' => self::date('Fecha de emisión'),
@@ -787,7 +933,7 @@ final class JassPageController extends Controller
             'payments' => self::resource('Recibos de pago', 'Recibo de pago', Payment::class, [
                 'receipt_code' => self::code('Número de recibo'),
                 'customer_id' => self::select('Cliente', Customer::class, 'customer', false, 'last_name'),
-                'invoice_id' => self::select('Factura histórica', Invoice::class, 'invoice', false, 'invoice_code'),
+                'invoice_id' => self::select('Cuota histórica', Invoice::class, 'invoice', false, 'invoice_code'),
                 'paid_at' => self::datetime('Fecha y hora de pago'),
                 'amount' => self::number('Monto', true, 0.01),
                 'payment_method_id' => self::select('Método de pago', PaymentMethod::class, 'paymentMethod'),
@@ -795,7 +941,11 @@ final class JassPageController extends Controller
                 'user_id' => self::select('Registrado por', User::class, 'user', false, 'name'),
                 'operation_number' => self::text('Número de operación', false, 100),
                 'notes' => self::textarea('Observaciones', false),
-            ], ['receipt_code', 'customer_id', 'paid_at', 'amount', 'payment_method_id', 'source'], true),
+                'status' => self::choice('Estado', [Payment::STATUS_ACTIVE => 'Válido', Payment::STATUS_VOIDED => 'Anulado']),
+                'voided_at' => self::field('Fecha de anulación', 'datetime-local', false, ['readonly' => true]),
+                'voided_by' => self::readonlyRelation('Anulado por', User::class, 'voidedBy', 'name'),
+                'void_reason' => self::field('Motivo de anulación', 'text', false, ['readonly' => true]),
+            ], ['receipt_code', 'customer_id', 'paid_at', 'amount', 'payment_method_id', 'status'], true),
             'assemblies' => self::resource('Asambleas', 'Asamblea', Assembly::class, [
                 'assembly_code' => self::code('Código de asamblea'),
                 'assembly_type_id' => self::select('Tipo de asamblea', AssemblyType::class, 'assemblyType'),
@@ -827,33 +977,33 @@ final class JassPageController extends Controller
                 'received_on' => self::date('Fecha de recepción'),
                 'concept' => self::text('Concepto', false, 250),
                 'amount' => self::number('Monto', true, 0.01),
-                'user_id' => self::select('Registrado por', User::class, 'user', false, 'name'),
+                'user_id' => self::readonlyRelation('Registrado por', User::class, 'user', 'name'),
                 'reference' => self::text('Referencia', false, 100),
-            ], ['income_code', 'income_type_id', 'received_on', 'concept', 'amount']),
+            ], ['income_code', 'income_type_id', 'received_on', 'concept', 'amount'], false, false, true),
             'expenses' => self::resource('Egresos', 'Egreso', Expense::class, [
                 'expense_code' => self::code('Código de egreso'),
                 'expense_category_id' => self::select('Categoría', ExpenseCategory::class, 'expenseCategory'),
                 'incurred_on' => self::date('Fecha'),
                 'concept' => self::text('Concepto', false, 250),
                 'amount' => self::number('Monto', true, 0.01),
-                'user_id' => self::select('Registrado por', User::class, 'user', false, 'name'),
+                'user_id' => self::readonlyRelation('Registrado por', User::class, 'user', 'name'),
                 'receipt' => self::text('Comprobante', false, 100),
-            ], ['expense_code', 'expense_category_id', 'incurred_on', 'concept', 'amount']),
+            ], ['expense_code', 'expense_category_id', 'incurred_on', 'concept', 'amount'], false, false, true),
             'cash-closings' => self::resource('Cierres de caja', 'Cierre de caja', CashClosing::class, [
-                'year' => self::number('Año', true, 2000),
-                'month' => self::number('Mes', true, 1),
-                'total_income' => self::number('Total de ingresos', true, 0),
-                'total_expense' => self::number('Total de egresos', true, 0),
-                'balance' => self::number('Saldo', true),
-                'user_id' => self::select('Cerrado por', User::class, 'user', false, 'name'),
-                'closed_at' => self::datetime('Fecha de cierre', false),
-            ], ['year', 'month', 'total_income', 'total_expense', 'balance', 'closed_at']),
+                'year' => self::integerNumber('Año', true, 2000, 2100),
+                'month' => self::integerNumber('Mes', true, 1, 12),
+                'total_income' => self::readonlyNumber('Ingresos desde el último cierre'),
+                'total_expense' => self::readonlyNumber('Egresos desde el último cierre'),
+                'balance' => self::readonlyNumber('Saldo que se deja'),
+                'user_id' => self::readonlyRelation('Cerrado por', User::class, 'user', 'name'),
+                'closed_at' => self::field('Fecha de cierre', 'datetime-local', false, ['readonly' => true]),
+            ], ['year', 'month', 'total_income', 'total_expense', 'balance', 'closed_at'], false, true),
             'customer-statuses' => self::catalog('Estados de cliente', 'Estado de cliente', CustomerStatus::class),
             'neighborhoods' => self::resource('Sectores', 'Sector', Neighborhood::class, [
                 'name' => self::text('Nombre', true, 100),
                 'description' => self::text('Descripción', false, 255),
                 'active' => self::checkbox('Activo'),
-            ], ['name', 'description', 'active']),
+            ], ['name', 'description', 'active'], false, false, true),
             'connection-types' => self::catalog('Tipos de conexión', 'Tipo de conexión', ConnectionType::class, 200),
             'connection-statuses' => self::catalog('Estados de conexión', 'Estado de conexión', ConnectionStatus::class, 200),
             'usage-types' => self::catalog('Tipos de uso', 'Tipo de uso', UsageType::class, 200),
@@ -861,8 +1011,18 @@ final class JassPageController extends Controller
             'assembly-types' => self::catalog('Tipos de asamblea', 'Tipo de asamblea', AssemblyType::class, 200),
             'income-types' => self::singleName('Tipos de ingreso', 'Tipo de ingreso', IncomeType::class),
             'expense-categories' => self::singleName('Categorías de egreso', 'Categoría de egreso', ExpenseCategory::class),
-            'roles' => self::catalog('Roles', 'Rol', Role::class),
-            'permissions' => self::catalog('Permisos', 'Permiso', Permission::class),
+            'users' => self::resource('Usuarios del sistema', 'Usuario', User::class, [
+                'user_code' => self::code('Código de usuario'),
+                'name' => self::text('Nombres', true, 100),
+                'last_name' => self::text('Apellidos', false, 100),
+                'email' => self::field('Correo electrónico', 'email', true, ['max' => 150, 'unique' => true]),
+                'password' => self::password('Contraseña nueva'),
+                'role_id' => self::select('Rol', Role::class, 'role'),
+                'active' => self::checkbox('Usuario activo', true),
+                'last_login_at' => self::field('Último acceso', 'datetime-local', false, ['readonly' => true]),
+            ], ['user_code', 'name', 'last_name', 'email', 'role_id', 'active']),
+            'roles' => self::catalog('Roles', 'Rol', Role::class, 255, false),
+            'permissions' => self::catalog('Permisos', 'Permiso', Permission::class, 255, false),
             'settings' => self::resource('Configuraciones', 'Configuración', Setting::class, [
                 'key' => self::text('Clave', true, 100),
                 'value' => self::text('Valor', true, 255),
@@ -881,7 +1041,7 @@ final class JassPageController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private static function resource(string $label, string $singular, string $model, array $fields, array $columns = [], bool $readOnly = false): array
+    private static function resource(string $label, string $singular, string $model, array $fields, array $columns = [], bool $readOnly = false, bool $immutable = false, bool $deleteOnIndex = false): array
     {
         return [
             'label' => $label,
@@ -890,16 +1050,18 @@ final class JassPageController extends Controller
             'fields' => $fields,
             'columns' => $columns,
             'read_only' => $readOnly,
+            'immutable' => $immutable,
+            'delete_on_index' => $deleteOnIndex,
         ];
     }
 
     /** @return array<string, mixed> */
-    private static function catalog(string $label, string $singular, string $model, int $descriptionMax = 255): array
+    private static function catalog(string $label, string $singular, string $model, int $descriptionMax = 255, bool $deleteOnIndex = true): array
     {
         return self::resource($label, $singular, $model, [
             'name' => self::text('Nombre', true, 100),
             'description' => self::text('Descripción', false, $descriptionMax),
-        ], ['name', 'description']);
+        ], ['name', 'description'], false, false, $deleteOnIndex);
     }
 
     /** @return array<string, mixed> */
@@ -907,7 +1069,7 @@ final class JassPageController extends Controller
     {
         return self::resource($label, $singular, $model, [
             'name' => self::text('Nombre', true, $max),
-        ], ['name']);
+        ], ['name'], false, false, true);
     }
 
     /** @return array<string, mixed> */
@@ -926,6 +1088,26 @@ final class JassPageController extends Controller
     private static function email(string $label, bool $required = true, ?int $max = null): array
     {
         return self::field($label, 'email', $required, $max === null ? [] : ['max' => $max]);
+    }
+
+    /** @return array<string, mixed> */
+    private static function password(string $label): array
+    {
+        return self::field($label, 'password', true, [
+            'max' => 255,
+            'hide_on_show' => true,
+            'optional_on_update' => true,
+        ]);
+    }
+
+    public static function roleLabel(?string $role): string
+    {
+        return CatalogLabel::role($role);
+    }
+
+    public static function catalogValueLabel(mixed $value): string
+    {
+        return CatalogLabel::value($value);
     }
 
     /** @return array<string, mixed> */
@@ -962,6 +1144,18 @@ final class JassPageController extends Controller
     }
 
     /** @return array<string, mixed> */
+    private static function integerNumber(string $label, bool $required = true, ?int $min = null, ?int $max = null, ?int $default = null): array
+    {
+        return self::field($label, 'number', $required, array_filter([
+            'integer' => true,
+            'step' => 1,
+            'min' => $min,
+            'max_value' => $max,
+            'default' => $default,
+        ], static fn (mixed $value): bool => $value !== null));
+    }
+
+    /** @return array<string, mixed> */
     private static function checkbox(string $label, bool $default = false): array
     {
         return self::field($label, 'checkbox', false, ['default' => $default]);
@@ -971,6 +1165,16 @@ final class JassPageController extends Controller
     private static function select(string $label, string $model, string $relation, bool $required = true, string $optionLabel = 'name'): array
     {
         return self::field($label, 'select', $required, [
+            'relation' => $relation,
+            'options' => ['model' => $model, 'label' => $optionLabel],
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    private static function readonlyRelation(string $label, string $model, string $relation, string $optionLabel = 'name'): array
+    {
+        return self::field($label, 'select', false, [
+            'readonly' => true,
             'relation' => $relation,
             'options' => ['model' => $model, 'label' => $optionLabel],
         ]);

@@ -60,9 +60,20 @@ final class AuditService
         $this->record($user, $model, 'DELETE', $before, null);
     }
 
+    public function passwordChanged(?User $actor, User $user): void
+    {
+        $this->record(
+            $actor,
+            $user,
+            'UPDATE',
+            ['password' => 'PROTECTED'],
+            ['password' => 'UPDATED'],
+        );
+    }
+
     /**
-     * @param array<string, mixed>|null $oldValues
-     * @param array<string, mixed>|null $newValues
+     * @param  array<string, mixed>|null  $oldValues
+     * @param  array<string, mixed>|null  $newValues
      */
     private function record(?User $user, Model $model, string $action, ?array $oldValues, ?array $newValues): void
     {

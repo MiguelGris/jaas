@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasGeneratedCode;
-use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
@@ -26,6 +26,11 @@ class User extends Authenticatable
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function voidedPayments()
+    {
+        return $this->hasMany(Payment::class, 'voided_by');
     }
 
     public function meterReadings()

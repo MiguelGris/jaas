@@ -15,14 +15,12 @@ use Illuminate\Validation\ValidationException;
 
 final class PaymentCollectionService
 {
-    public function __construct(private readonly DebtService $debts)
-    {
-    }
+    public function __construct(private readonly DebtService $debts) {}
 
     /**
-     * @param list<int|string> $invoiceIds
-     * @param list<int|string> $fineIds
-     * @param array{payment_method_id: int|string, notes?: string|null} $details
+     * @param  list<int|string>  $invoiceIds
+     * @param  list<int|string>  $fineIds
+     * @param  array{payment_method_id: int|string, notes?: string|null}  $details
      */
     public function collect(Customer $customer, array $invoiceIds, array $fineIds, array $details, ?User $user): Payment
     {
@@ -95,6 +93,7 @@ final class PaymentCollectionService
                     'date_field' => 'paid_at',
                 ], $date),
                 'notes' => $details['notes'] ?? null,
+                'status' => Payment::STATUS_ACTIVE,
             ]);
 
             foreach ($allocations as $allocation) {
@@ -107,6 +106,7 @@ final class PaymentCollectionService
                         'invoice_id' => $invoice->getKey(),
                     ]);
                     $this->debts->synchroniseInvoice($invoice, $date);
+
                     continue;
                 }
 

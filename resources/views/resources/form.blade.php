@@ -20,7 +20,9 @@
             @foreach ($definition['fields'] as $name => $field)
                 @continue($field['readonly'] ?? false)
                 @php
-                    $value = old($name, $editing ? $record->getAttribute($name) : ($field['default'] ?? null));
+                    $value = $field['type'] === 'password'
+                        ? null
+                        : old($name, $editing ? $record->getAttribute($name) : ($field['default'] ?? null));
                     if ($value instanceof DateTimeInterface) {
                         $value = match ($field['type']) {
                             'date' => $value->format('Y-m-d'),
@@ -33,6 +35,7 @@
                         $value = $matches[1];
                     }
                     $wide = $field['type'] === 'textarea';
+                    $isRequired = $field['required'] && ! ($editing && ($field['optional_on_update'] ?? false));
                 @endphp
                 <div @class(['md:col-span-2' => $wide])>
                     @if ($field['type'] === 'checkbox')
@@ -42,13 +45,14 @@
                             {{ $field['label'] }}
                         </label>
                     @else
-                        <label for="{{ $name }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $field['label'] }} @if ($field['required'])<span class="text-rose-600">*</span>@endif</label>
+                        <label for="{{ $name }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $field['label'] }} @if ($isRequired)<span class="text-rose-600">*</span>@endif</label>
+                        @if ($editing && $field['type'] === 'password')<p class="mb-2 text-xs text-slate-500">Déjala en blanco para conservar la contraseña actual.</p>@endif
                         @if ($field['type'] === 'textarea')
-                            <textarea id="{{ $name }}" name="{{ $name }}" rows="4" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">{{ $value }}</textarea>
+                            <textarea id="{{ $name }}" name="{{ $name }}" rows="4" @required($isRequired) class="block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">{{ $value }}</textarea>
                         @elseif ($field['type'] === 'select')
                             <div data-select-filter>
                                 <input type="search" placeholder="Buscar en la lista…" aria-label="Buscar {{ Str::lower($field['label']) }}" class="mb-2 block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">
-                                <select id="{{ $name }}" name="{{ $name }}" class="block w-full rounded-lg border-slate-300 bg-white text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">
+                                <select id="{{ $name }}" name="{{ $name }}" @required($isRequired) class="block w-full rounded-lg border-slate-300 bg-white text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">
                                     @if (! $field['required'])<option value="">Selecciona una opción</option>@endif
                                     @foreach ($options[$name] as $optionValue => $optionLabel)
                                         <option value="{{ $optionValue }}" @selected((string) $value === (string) $optionValue)>{{ $optionLabel }}</option>
@@ -56,7 +60,7 @@
                                 </select>
                             </div>
                         @else
-                            <input id="{{ $name }}" name="{{ $name }}" type="{{ $field['type'] }}" value="{{ $value }}" @if ($field['type'] === 'number') step="0.01" @endif @if (isset($field['min'])) min="{{ $field['min'] }}" @endif @if (isset($field['max'])) maxlength="{{ $field['max'] }}" @endif class="block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">
+                            <input id="{{ $name }}" name="{{ $name }}" type="{{ $field['type'] }}" value="{{ $value }}" @required($isRequired) @if ($field['type'] === 'password') autocomplete="new-password" @endif @if ($field['type'] === 'number') step="{{ $field['step'] ?? '0.01' }}" @endif @if (isset($field['min'])) min="{{ $field['min'] }}" @endif @if (isset($field['max_value'])) max="{{ $field['max_value'] }}" @endif @if (isset($field['max']) && $field['type'] !== 'number') maxlength="{{ $field['max'] }}" @endif class="block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">
                         @endif
                     @endif
                     @error($name)<p class="mt-1.5 text-sm font-medium text-rose-600">{{ $message }}</p>@enderror

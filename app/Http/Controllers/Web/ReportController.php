@@ -7,19 +7,29 @@ use App\Services\ReportService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class ReportController extends Controller
 {
     public function download(Request $request, string $report, string $format, ReportService $reports): StreamedResponse|
-    \Illuminate\Http\Response
+    Response
     {
-        abort_unless(in_array($report, ['cash-flow', 'annual-balance', 'debtors', 'attendance', 'work-exemptions'], true), 404);
+        abort_unless(in_array($report, [
+            'cash-flow',
+            'annual-balance',
+            'debtors',
+            'debt-aging',
+            'payment-methods',
+            'service-register',
+            'attendance',
+            'work-exemptions',
+        ], true), 404);
         abort_unless(in_array($format, ['xlsx', 'pdf'], true), 404);
 
         $data = $request->validate([
@@ -37,7 +47,7 @@ final class ReportController extends Controller
     /** @param array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>} $document */
     private function excel(array $document): StreamedResponse
     {
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Reporte');
         $lastColumn = Coordinate::stringFromColumnIndex(count($document['headers']));
@@ -81,9 +91,9 @@ final class ReportController extends Controller
     }
 
     /** @param array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>} $document */
-    private function pdf(array $document): \Illuminate\Http\Response
+    private function pdf(array $document): Response
     {
-        $options = new Options();
+        $options = new Options;
         $options->set('defaultFont', 'DejaVu Sans');
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml(view('reports.pdf', ['report' => $document])->render());

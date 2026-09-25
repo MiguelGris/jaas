@@ -20,7 +20,7 @@
                 @if ($invoices->isEmpty() && $fines->isEmpty())
                     <div class="mt-7 rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
                         <p class="text-lg font-bold text-emerald-900">No tienes deudas pendientes.</p>
-                        <p class="mt-1 text-sm text-emerald-800">Tus facturas pendientes están pagadas o no hay obligaciones vigentes.</p>
+                        <p class="mt-1 text-sm text-emerald-800">Tus cuotas están pagadas o no hay obligaciones vigentes.</p>
                     </div>
                 @else
                     <div class="mt-7 flex flex-col justify-between gap-3 rounded-xl bg-slate-950 p-5 text-white sm:flex-row sm:items-center">

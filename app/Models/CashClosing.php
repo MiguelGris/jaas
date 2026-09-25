@@ -9,6 +9,8 @@ class CashClosing extends JassModel
     protected function casts(): array
     {
         return [
+            'year' => 'integer',
+            'month' => 'integer',
             'total_income' => 'decimal:2',
             'total_expense' => 'decimal:2',
             'balance' => 'decimal:2',

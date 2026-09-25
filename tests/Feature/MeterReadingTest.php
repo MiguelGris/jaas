@@ -10,6 +10,8 @@ use App\Models\CustomerStatus;
 use App\Models\Meter;
 use App\Models\Neighborhood;
 use App\Models\Property;
+use App\Models\Role;
+use App\Models\User;
 use App\Services\MeterReadingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -64,6 +66,39 @@ class MeterReadingTest extends TestCase
             'meter_id' => $meter->id,
             'read_on' => '2026-09-01',
             'current_reading' => 10,
+        ]);
+    }
+
+    public function test_the_api_uses_the_meter_reading_service_to_calculate_consumption(): void
+    {
+        [, $metered] = $this->connections();
+        $meter = Meter::query()->create([
+            'connection_id' => $metered->id,
+            'meter_number' => 'MED-API-001',
+            'initial_reading' => 40,
+            'active' => true,
+        ]);
+        $role = Role::query()->create(['name' => 'ADMINISTRATOR']);
+        $administrator = User::query()->create([
+            'name' => 'Administrador',
+            'email' => 'admin-meter-api@example.test',
+            'password' => 'Password123',
+            'role_id' => $role->id,
+            'active' => true,
+        ]);
+
+        $response = $this->actingAs($administrator)->postJson(route('v1.meter-readings.store'), [
+            'meter_id' => $meter->id,
+            'read_on' => '2026-09-15',
+            'current_reading' => 52.5,
+        ]);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('meter_readings', [
+            'meter_id' => $meter->id,
+            'previous_reading' => 40,
+            'current_reading' => 52.5,
+            'consumption' => 12.5,
         ]);
     }
 

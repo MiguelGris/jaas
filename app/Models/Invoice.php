@@ -7,6 +7,7 @@ use App\Models\Concerns\HasGeneratedCode;
 class Invoice extends JassModel
 {
     use HasGeneratedCode;
+
     protected function casts(): array
     {
         return [
@@ -38,7 +39,8 @@ class Invoice extends JassModel
 
     public function paymentAllocations()
     {
-        return $this->hasMany(PaymentAllocation::class);
+        return $this->hasMany(PaymentAllocation::class)
+            ->whereHas('payment', fn ($query) => $query->active());
     }
 
     protected function generatedCodeDefinition(): array

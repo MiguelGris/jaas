@@ -7,6 +7,7 @@ use App\Models\Concerns\HasGeneratedCode;
 class Fine extends JassModel
 {
     use HasGeneratedCode;
+
     public $timestamps = false;
 
     protected function casts(): array
@@ -26,7 +27,8 @@ class Fine extends JassModel
 
     public function paymentAllocations()
     {
-        return $this->hasMany(PaymentAllocation::class);
+        return $this->hasMany(PaymentAllocation::class)
+            ->whereHas('payment', fn ($query) => $query->active());
     }
 
     protected function generatedCodeDefinition(): array

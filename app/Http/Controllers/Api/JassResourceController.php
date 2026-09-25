@@ -35,6 +35,8 @@ use App\Models\Setting;
 use App\Models\UsageType;
 use App\Models\User;
 use App\Services\AuditService;
+use App\Services\CashService;
+use App\Services\MeterReadingService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -51,6 +53,7 @@ use Illuminate\Validation\ValidationException;
 final class JassResourceController extends Controller
 {
     private const AUTOMATED_RESOURCES = ['invoices', 'payments', 'fines'];
+
     /**
      * Return the names that must be registered with Route::apiResource().
      *
@@ -74,10 +77,32 @@ final class JassResourceController extends Controller
     public function store(Request $request, AuditService $audit): JsonResponse
     {
         $this->ensureAutomatedResourceIsReadOnly($request);
+        $resource = $this->resourceName($request);
         $definition = $this->definition($request);
         $attributes = $request->validate($this->rules($definition));
         $this->assertCompoundUnique($definition, $attributes);
-        $record = $this->modelClass($definition)::create($attributes);
+        $this->ensureCashMovementIsOpen($resource, $attributes);
+
+        if (in_array($resource, ['incomes', 'expenses'], true)) {
+            $attributes['user_id'] = $request->user()?->getKey();
+        }
+
+        if ($resource === 'cash-closings') {
+            $user = $request->user();
+            abort_if($user === null, 403);
+            $record = app(CashService::class)->close((int) $attributes['year'], (int) $attributes['month'], $user);
+            $audit->created($user, $record);
+
+            return response()->json($record->load($definition['with']), 201);
+        }
+
+        if ($resource === 'meters') {
+            $this->ensureMeterCanBeAssigned($attributes);
+        }
+
+        $record = $resource === 'meter-readings'
+            ? app(MeterReadingService::class)->create($attributes, $request->user()?->getKey())
+            : $this->modelClass($definition)::create($attributes);
         $audit->created($request->user(), $record);
 
         return response()->json($record->load($definition['with']), 201);
@@ -91,15 +116,48 @@ final class JassResourceController extends Controller
     public function update(Request $request, string $record, AuditService $audit)
     {
         $this->ensureAutomatedResourceIsReadOnly($request);
+        $resource = $this->resourceName($request);
+        abort_if($resource === 'cash-closings', 405, 'Los cierres de caja confirmados no se pueden editar.');
         $definition = $this->definition($request);
         $model = $this->find($definition, $record);
         $attributes = $request->validate($this->updateRules($this->rules($definition, $record)));
+        $this->ensureCashMovementIsOpen($resource, $attributes, $model);
         $this->assertCompoundUnique($definition, $attributes, $model);
         $before = $audit->snapshot($model);
 
-        $model->fill($attributes);
-        $model->save();
+        if ($resource === 'users' && $model->is($request->user()) && array_key_exists('active', $attributes) && ! $attributes['active']) {
+            throw ValidationException::withMessages([
+                'active' => 'No puedes desactivar tu propia cuenta.',
+            ]);
+        }
+
+        if ($resource === 'connections') {
+            $this->ensureConnectionCanUsePaymentMode($model, $attributes);
+        }
+        if ($resource === 'meters') {
+            $this->ensureMeterCanBeAssigned($attributes, $model);
+        }
+
+        $passwordChanged = $resource === 'users' && array_key_exists('password', $attributes);
+
+        if ($resource === 'meter-readings') {
+            $readingAttributes = array_merge(
+                $model->only(['meter_id', 'read_on', 'current_reading', 'user_id', 'notes']),
+                $attributes,
+            );
+            $model = app(MeterReadingService::class)->update($model, $readingAttributes);
+        } else {
+            $model->fill($attributes);
+            $model->save();
+
+            if ($resource === 'meters') {
+                app(MeterReadingService::class)->recalculateForMeter($model);
+            }
+        }
         $audit->updated($request->user(), $model, $before);
+        if ($passwordChanged) {
+            $audit->passwordChanged($request->user(), $model);
+        }
 
         return $model->fresh($definition['with']);
     }
@@ -107,11 +165,22 @@ final class JassResourceController extends Controller
     public function destroy(Request $request, string $record, AuditService $audit): JsonResponse
     {
         $this->ensureAutomatedResourceIsReadOnly($request);
+        $resource = $this->resourceName($request);
+        abort_if($resource === 'cash-closings', 405, 'Los cierres de caja confirmados no se pueden eliminar.');
         $model = $this->find($this->definition($request), $record);
+        $this->ensureCashMovementIsOpen($resource, [], $model);
         $before = $audit->snapshot($model);
 
+        if ($resource === 'users' && $model->is($request->user())) {
+            return response()->json(['message' => 'No puedes eliminar tu propia cuenta.'], 422);
+        }
+
         try {
-            $model->delete();
+            if ($resource === 'meter-readings') {
+                app(MeterReadingService::class)->delete($model);
+            } else {
+                $model->delete();
+            }
         } catch (QueryException) {
             return response()->json([
                 'message' => 'No se puede eliminar el registro porque tiene información relacionada.',
@@ -122,8 +191,77 @@ final class JassResourceController extends Controller
         return response()->json(null, 204);
     }
 
+    /** @param array<string, mixed> $attributes */
+    private function ensureCashMovementIsOpen(?string $resource, array $attributes, ?Model $model = null): void
+    {
+        $dateField = match ($resource) {
+            'incomes' => 'received_on',
+            'expenses' => 'incurred_on',
+            default => null,
+        };
+
+        if ($dateField === null) {
+            return;
+        }
+
+        $cash = app(CashService::class);
+
+        if ($model !== null) {
+            $cash->ensureMovementDateIsOpen($model->getAttribute($dateField), $dateField);
+        }
+
+        if (array_key_exists($dateField, $attributes)) {
+            $cash->ensureMovementDateIsOpen($attributes[$dateField], $dateField);
+        }
+    }
+
+    /** @param array<string, mixed> $attributes */
+    private function ensureConnectionCanUsePaymentMode(Connection $connection, array $attributes): void
+    {
+        $mode = $attributes['payment_mode'] ?? $connection->payment_mode ?? Connection::PAYMENT_FIXED;
+
+        if ($mode === Connection::PAYMENT_FIXED && $connection->meters()->where('active', true)->exists()) {
+            throw ValidationException::withMessages([
+                'payment_mode' => 'Desactiva o retira el medidor activo antes de cambiar la conexión a pago fijo.',
+            ]);
+        }
+    }
+
+    /** @param array<string, mixed> $attributes */
+    private function ensureMeterCanBeAssigned(array $attributes, ?Meter $meter = null): void
+    {
+        $connectionId = (int) ($attributes['connection_id'] ?? $meter?->connection_id);
+        $connection = Connection::query()->findOrFail($connectionId);
+
+        if ($connection->payment_mode !== Connection::PAYMENT_METERED) {
+            throw ValidationException::withMessages([
+                'connection_id' => 'Solo las conexiones configuradas con cobro por medidor pueden tener un medidor asignado.',
+            ]);
+        }
+
+        $active = array_key_exists('active', $attributes) ? (bool) $attributes['active'] : ($meter?->active ?? true);
+        if ($active) {
+            $activeMeters = Meter::query()
+                ->where('connection_id', $connection->getKey())
+                ->where('active', true)
+                ->when($meter, fn ($query) => $query->where('id', '!=', $meter->getKey()));
+
+            if ($activeMeters->exists()) {
+                throw ValidationException::withMessages(['connection_id' => 'La conexión ya tiene un medidor activo.']);
+            }
+        }
+
+        $initialReading = (float) ($attributes['initial_reading'] ?? $meter?->initial_reading ?? 0);
+        $firstReading = $meter?->readings()->orderBy('read_on')->orderBy('id')->first();
+        if ($firstReading !== null && $initialReading > (float) $firstReading->current_reading) {
+            throw ValidationException::withMessages([
+                'initial_reading' => 'La lectura inicial no puede superar la primera lectura registrada.',
+            ]);
+        }
+    }
+
     /**
-     * @param array{model: class-string<Model>, rules: callable(?string): array, with: list<string>} $definition
+     * @param  array{model: class-string<Model>, rules: callable(?string): array, with: list<string>}  $definition
      */
     private function find(array $definition, string $id): Model
     {
@@ -131,7 +269,7 @@ final class JassResourceController extends Controller
     }
 
     /**
-     * @param array{model: class-string<Model>, rules: callable(?string): array, with: list<string>} $definition
+     * @param  array{model: class-string<Model>, rules: callable(?string): array, with: list<string>}  $definition
      */
     private function query(array $definition)
     {
@@ -139,7 +277,7 @@ final class JassResourceController extends Controller
     }
 
     /**
-     * @param array{model: class-string<Model>, rules: callable(?string): array, with: list<string>} $definition
+     * @param  array{model: class-string<Model>, rules: callable(?string): array, with: list<string>}  $definition
      * @return class-string<Model>
      */
     private function modelClass(array $definition): string
@@ -148,7 +286,7 @@ final class JassResourceController extends Controller
     }
 
     /**
-     * @param array{model: class-string<Model>, rules: callable(?string): array, with: list<string>} $definition
+     * @param  array{model: class-string<Model>, rules: callable(?string): array, with: list<string>}  $definition
      * @return array<string, string|list<string>>
      */
     private function rules(array $definition, ?string $id = null): array
@@ -162,7 +300,7 @@ final class JassResourceController extends Controller
      * Make every rule optional for PATCH/PUT while retaining constraints when
      * the field is present in the request.
      *
-     * @param array<string, string|list<string>> $rules
+     * @param  array<string, string|list<string>>  $rules
      * @return array<string, string|list<string>>
      */
     private function updateRules(array $rules): array
@@ -221,8 +359,8 @@ final class JassResourceController extends Controller
      * Check database-level compound unique constraints before writing. This
      * also covers a partial update that changes only one member of a pair.
      *
-     * @param array{model: class-string<Model>, compound_unique?: list<list<string>>} $definition
-     * @param array<string, mixed> $attributes
+     * @param  array{model: class-string<Model>, compound_unique?: list<list<string>>}  $definition
+     * @param  array<string, mixed>  $attributes
      */
     private function assertCompoundUnique(array $definition, array $attributes, ?Model $current = null): void
     {
@@ -419,6 +557,7 @@ final class JassResourceController extends Controller
                 'model' => Connection::class,
                 'rules' => static fn (?string $id): array => [
                     'property_id' => 'required|integer|exists:properties,id',
+                    'payment_mode' => 'required|in:FIXED,METERED',
                     'connection_type_id' => 'required|integer|exists:connection_types,id',
                     'connection_status_id' => 'required|integer|exists:connection_statuses,id',
                     'installed_on' => 'nullable|date',
@@ -442,6 +581,7 @@ final class JassResourceController extends Controller
                     'usage_type_id' => 'required|integer|exists:usage_types,id',
                     'year' => 'required|integer|between:2000,2100',
                     'amount' => 'required|numeric|min:0',
+                    'metered_unit_price' => 'nullable|numeric|min:0',
                     'starts_on' => 'required|date',
                     'ends_on' => 'nullable|date|after_or_equal:starts_on',
                     'approved_by_assembly' => 'required|boolean',
@@ -480,13 +620,14 @@ final class JassResourceController extends Controller
                     'operation_number' => 'nullable|string|max:100',
                     'notes' => 'nullable|string|max:250',
                 ],
-                'with' => ['customer', 'invoice', 'paymentMethod', 'user', 'allocations'],
+                'with' => ['customer', 'invoice', 'paymentMethod', 'user', 'voidedBy', 'allocations'],
             ],
             'meters' => [
                 'model' => Meter::class,
                 'rules' => static fn (?string $id): array => [
                     'connection_id' => 'required|integer|exists:connections,id',
                     'meter_number' => ['required', 'string', 'max:50', self::unique('meters', 'meter_number', $id)],
+                    'initial_reading' => 'required|numeric|min:0',
                     'installed_on' => 'nullable|date',
                     'active' => 'required|boolean',
                 ],
@@ -547,7 +688,6 @@ final class JassResourceController extends Controller
                     'received_on' => 'required|date',
                     'concept' => 'nullable|string|max:250',
                     'amount' => 'required|numeric|min:0.01',
-                    'user_id' => 'nullable|integer|exists:users,id',
                     'reference' => 'nullable|string|max:100',
                 ],
                 'with' => ['incomeType', 'user'],
@@ -559,7 +699,6 @@ final class JassResourceController extends Controller
                     'incurred_on' => 'required|date',
                     'concept' => 'nullable|string|max:250',
                     'amount' => 'required|numeric|min:0.01',
-                    'user_id' => 'nullable|integer|exists:users,id',
                     'receipt' => 'nullable|string|max:100',
                 ],
                 'with' => ['expenseCategory', 'user'],
@@ -569,11 +708,6 @@ final class JassResourceController extends Controller
                 'rules' => static fn (?string $id): array => [
                     'year' => 'required|integer|between:2000,2100',
                     'month' => 'required|integer|between:1,12',
-                    'total_income' => 'required|numeric|min:0',
-                    'total_expense' => 'required|numeric|min:0',
-                    'balance' => 'required|numeric',
-                    'user_id' => 'nullable|integer|exists:users,id',
-                    'closed_at' => 'nullable|date',
                 ],
                 'with' => ['user'],
                 'compound_unique' => [['year', 'month']],

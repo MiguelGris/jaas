@@ -24,6 +24,12 @@ final class EnsureUserIsActive
             $request->session()->regenerateToken();
         }
 
+        if ($request->expectsJson() || $request->is('api/*')) {
+            return response()->json([
+                'message' => 'Tu cuenta está inactiva. Comunícate con la administración.',
+            ], 403);
+        }
+
         return redirect()
             ->route('login')
             ->withErrors(['email' => 'Tu cuenta está inactiva. Comunícate con la administración.']);

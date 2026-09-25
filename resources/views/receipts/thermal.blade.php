@@ -20,6 +20,7 @@
         th:last-child, td:last-child { text-align: right; }
         td { padding: 1.5mm 0; vertical-align: top; }
         .total { display: flex; justify-content: space-between; margin-top: 2mm; padding-top: 2mm; border-top: 1px solid #0f172a; font-size: 13px; font-weight: 800; }
+        .voided { margin: 3mm 0; border: 2px solid #be123c; padding: 2mm; color: #be123c; font-size: 14px; font-weight: 900; text-align: center; }
         .print { display: block; width: 100%; margin: 5mm auto 0; border: 0; border-radius: 5px; padding: 3mm; background: #0369a1; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
         @media print {
             html, body { width: 70mm; background: #fff; }
@@ -36,14 +37,19 @@
         <header class="center">
             <p class="title">JASS</p>
             <p class="muted">Administración del servicio de agua</p>
-            <p><strong>RECIBO DE PAGO</strong><br>{{ $payment->receipt_code }}</p>
+            <p><strong>{{ $payment->status === App\Models\Payment::STATUS_VOIDED ? 'RECIBO ANULADO' : 'RECIBO DE PAGO' }}</strong><br>{{ $payment->receipt_code }}</p>
         </header>
+
+        @if ($payment->status === App\Models\Payment::STATUS_VOIDED)
+            <div class="voided">ANULADO</div>
+            <p class="muted"><strong>Motivo:</strong> {{ $payment->void_reason }}<br><strong>Anulado:</strong> {{ $payment->voided_at?->format('d/m/Y H:i') }} por {{ $payment->voidedBy?->name ?? 'Sistema' }}</p>
+        @endif
 
         <hr class="divider">
         <div class="data"><span>Fecha</span><span>{{ $payment->paid_at?->format('d/m/Y H:i') }}</span></div>
         <div class="data"><span>Cliente</span><span>{{ $customerName }}</span></div>
         @if ($customer?->national_id)<div class="data"><span>DNI</span><span>{{ $customer->national_id }}</span></div>@endif
-        <div class="data"><span>Medio de pago</span><span>{{ $payment->paymentMethod?->name ?? '—' }}</span></div>
+        <div class="data"><span>Medio de pago</span><span>{{ App\Support\CatalogLabel::value($payment->paymentMethod?->name ?? '—') }}</span></div>
         @if ($payment->operation_number)<div class="data"><span>Operación</span><span>{{ $payment->operation_number }}</span></div>@endif
 
         <hr class="divider">

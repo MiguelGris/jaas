@@ -24,7 +24,16 @@
                             default => 'border-emerald-100 bg-emerald-50 text-emerald-700',
                         };
                     @endphp
-                    <a href="{{ route('resources.index', ['resource' => $metric['resource']]) }}" class="rounded-xl border p-5 transition hover:-translate-y-0.5 hover:shadow-md {{ $colors }}">
+                    @php
+                        $metricUrl = isset($metric['route_name'])
+                            ? route($metric['route_name'])
+                            : route('resources.index', ['resource' => $metric['resource'], ...($metric['query'] ?? [])]);
+                    @endphp
+                    <a href="{{ $metricUrl }}" @class([
+                        'rounded-xl border p-5 transition hover:-translate-y-0.5 hover:shadow-md',
+                        $colors,
+                        'md:col-span-3' => $metric['wide'] ?? false,
+                    ])>
                         <p class="text-sm font-medium opacity-80">{{ $metric['label'] }}</p>
                         <p class="mt-2 text-3xl font-bold tracking-tight">@if (($metric['format'] ?? 'currency') === 'currency')S/ {{ number_format($metric['value'], 2) }}@else{{ number_format($metric['value']) }}@endif</p>
                         @if (isset($metric['detail']))<p class="mt-1 text-xs font-medium opacity-80">{{ $metric['detail'] }}</p>@endif
@@ -42,8 +51,11 @@
                             'emerald' => 'border-emerald-100 bg-emerald-50 text-emerald-700',
                             default => 'border-sky-100 bg-sky-50 text-sky-700',
                         };
+                        $metricUrl = isset($metric['route_name'])
+                            ? route($metric['route_name'])
+                            : route('resources.index', ['resource' => $metric['resource'], ...($metric['query'] ?? [])]);
                     @endphp
-                    <a href="{{ route('resources.index', ['resource' => $metric['resource']]) }}" class="rounded-xl border p-5 transition hover:-translate-y-0.5 hover:shadow-md {{ $colors }}">
+                    <a href="{{ $metricUrl }}" class="rounded-xl border p-5 transition hover:-translate-y-0.5 hover:shadow-md {{ $colors }}">
                         <p class="text-sm font-medium opacity-80">{{ $metric['label'] }}</p>
                         <p class="mt-2 text-3xl font-bold tracking-tight">{{ number_format($metric['value']) }}</p>
                         @if (isset($metric['detail']))<p class="mt-1 text-xs font-medium opacity-80">{{ $metric['detail'] }}</p>@endif
@@ -56,7 +68,7 @@
                 <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
                     <div>
                         <h2 class="font-semibold text-slate-800">Últimos movimientos</h2>
-                        <p class="mt-0.5 text-sm text-slate-500">Cobros, ingresos y gastos registrados recientemente.</p>
+                        <p class="mt-0.5 text-sm text-slate-500">Los 5 cobros, ingresos o gastos más recientes.</p>
                     </div>
                     <a href="{{ route('resources.index', ['resource' => 'payments']) }}" class="text-sm font-semibold text-sky-700 hover:text-sky-800">Ver cobros</a>
                 </div>
@@ -84,8 +96,8 @@
             <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
             <div>
-                <h2 class="font-semibold text-slate-800">Facturas recientes</h2>
-                <p class="mt-0.5 text-sm text-slate-500">Últimos comprobantes emitidos.</p>
+                <h2 class="font-semibold text-slate-800">Cuotas recientes</h2>
+                <p class="mt-0.5 text-sm text-slate-500">Las 5 cuotas mensuales emitidas más recientemente.</p>
             </div>
             <a href="{{ route('resources.index', ['resource' => 'invoices']) }}" class="text-sm font-semibold text-sky-700 hover:text-sky-800">Ver todas</a>
         </div>
@@ -107,7 +119,7 @@
                             <td class="px-5 py-3.5 text-right font-semibold text-slate-800 sm:px-6">S/ {{ number_format((float) $invoice->total, 2) }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="px-5 py-10 text-center text-slate-500">Todavía no hay facturas registradas.</td></tr>
+                        <tr><td colspan="4" class="px-5 py-10 text-center text-slate-500">Todavía no hay cuotas registradas.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -115,7 +127,7 @@
             </section>
         </div>
 
-        <aside id="reportes" class="self-start rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-6">
+        <aside id="reportes" class="self-start rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
             <h2 class="font-semibold text-slate-800">Reportes</h2>
             <p class="mt-1 text-sm text-slate-500">Excel se descarga. PDF se abre en una nueva pestaña.</p>
 
@@ -136,8 +148,27 @@
 
                 <form id="reporte-morosos" method="GET" action="{{ route('reports.download', ['report' => 'debtors', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
                     <h3 class="text-sm font-semibold text-slate-800">Lista de morosos</h3>
-                    <p class="mt-1 text-xs text-slate-500">Cuotas, multas y saldo pendiente por titular.</p>
+                    <p class="mt-1 text-xs text-slate-500">Solo cuotas vencidas y multas pendientes por titular.</p>
                     <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'debtors', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
+                </form>
+
+                <form id="reporte-antiguedad-deuda" method="GET" action="{{ route('reports.download', ['report' => 'debt-aging', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
+                    <h3 class="text-sm font-semibold text-slate-800">Antigüedad de deuda</h3>
+                    <p class="mt-1 text-xs text-slate-500">Clasifica la morosidad en 0–30, 31–60, 61–90 y más de 90 días.</p>
+                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'debt-aging', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
+                </form>
+
+                <form id="reporte-medios-pago" method="GET" action="{{ route('reports.download', ['report' => 'payment-methods', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
+                    <h3 class="text-sm font-semibold text-slate-800">Recaudación por medio de pago</h3>
+                    <label class="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="payment-method-month">Mes</label>
+                    <input id="payment-method-month" type="month" name="month" value="{{ now()->format('Y-m') }}" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'payment-methods', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
+                </form>
+
+                <form id="reporte-padron-conexiones" method="GET" action="{{ route('reports.download', ['report' => 'service-register', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
+                    <h3 class="text-sm font-semibold text-slate-800">Padrón de conexiones</h3>
+                    <p class="mt-1 text-xs text-slate-500">Clientes, predios, servicios, modalidad de cobro y medidores.</p>
+                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'service-register', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
                 </form>
 
                 @if ($assemblies->isNotEmpty())
@@ -153,7 +184,7 @@
 
                 <form id="reporte-exonerados" method="GET" action="{{ route('reports.download', ['report' => 'work-exemptions', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
                     <h3 class="text-sm font-semibold text-slate-800">Exonerados de faenas</h3>
-                    <p class="mt-1 text-xs text-slate-500">Titulares activos con {{ $reports->workExemptionAge() }} años o más. Ajustable en Gestión → Configuración: <code>work_exemption_age</code>.</p>
+                    <p class="mt-1 text-xs text-slate-500">Titulares activos con {{ $reports->workExemptionAge() }} años o más. Puedes ajustar la edad desde Administración → Configuraciones.</p>
                     <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'work-exemptions', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
                 </form>
             </div>
