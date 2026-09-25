@@ -38,6 +38,7 @@ use App\Services\AuditService;
 use App\Services\CashService;
 use App\Services\DebtService;
 use App\Services\MeterReadingService;
+use App\Services\PaymentConceptService;
 use App\Services\ReportService;
 use App\Support\CatalogLabel;
 use Illuminate\Database\Eloquent\Model;
@@ -330,12 +331,18 @@ final class JassPageController extends Controller
     {
         $definition = $this->definition($resource);
         $model = $this->find($definition, $record);
+        $paymentConcepts = [];
+
+        if ($model instanceof Payment) {
+            $paymentConcepts = app(PaymentConceptService::class)->forPayment($model);
+        }
 
         return view('resources.show', [
             'resource' => $resource,
             'definition' => $definition,
             'record' => $model,
             'fields' => $definition['fields'],
+            'paymentConcepts' => $paymentConcepts,
         ]);
     }
 
@@ -542,6 +549,8 @@ final class JassPageController extends Controller
             'Reportes' => [
                 ['label' => 'Flujo de caja mensual', 'route_name' => 'dashboard', 'fragment' => 'reporte-flujo-caja', 'permission' => 'reports.view'],
                 ['label' => 'Balance anual', 'route_name' => 'dashboard', 'fragment' => 'reporte-balance-anual', 'permission' => 'reports.view'],
+                ['label' => 'Conceptos de pago mensuales', 'route_name' => 'dashboard', 'fragment' => 'reporte-conceptos-mensual', 'permission' => 'reports.view'],
+                ['label' => 'Conceptos de pago anuales', 'route_name' => 'dashboard', 'fragment' => 'reporte-conceptos-anual', 'permission' => 'reports.view'],
                 ['label' => 'Lista de morosos', 'route_name' => 'delinquencies.index', 'active' => 'delinquencies.*', 'permission' => 'reports.view'],
                 ['label' => 'Antigüedad de deuda', 'route_name' => 'dashboard', 'fragment' => 'reporte-antiguedad-deuda', 'permission' => 'reports.view'],
                 ['label' => 'Recaudación por medio', 'route_name' => 'dashboard', 'fragment' => 'reporte-medios-pago', 'permission' => 'reports.view'],

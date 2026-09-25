@@ -146,6 +146,22 @@
                     <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'annual-balance', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
                 </form>
 
+                <form id="reporte-conceptos-mensual" method="GET" action="{{ route('reports.download', ['report' => 'payment-concepts-monthly', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
+                    <h3 class="text-sm font-semibold text-slate-800">Conceptos de pago mensuales</h3>
+                    <p class="mt-1 text-xs text-slate-500">Servicios, multas, moras, otros ingresos y egresos.</p>
+                    <label class="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="concept-month">Mes</label>
+                    <input id="concept-month" type="month" name="month" value="{{ now()->format('Y-m') }}" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'payment-concepts-monthly', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
+                </form>
+
+                <form id="reporte-conceptos-anual" method="GET" action="{{ route('reports.download', ['report' => 'payment-concepts-annual', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
+                    <h3 class="text-sm font-semibold text-slate-800">Conceptos de pago anuales</h3>
+                    <p class="mt-1 text-xs text-slate-500">Comparativo mensual por cada concepto.</p>
+                    <label class="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="concept-year">Año</label>
+                    <input id="concept-year" type="number" name="year" value="{{ now()->year }}" min="2000" max="2100" step="1" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'payment-concepts-annual', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
+                </form>
+
                 <form id="reporte-morosos" method="GET" action="{{ route('reports.download', ['report' => 'debtors', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
                     <h3 class="text-sm font-semibold text-slate-800">Lista de morosos</h3>
                     <p class="mt-1 text-xs text-slate-500">Solo cuotas vencidas y multas pendientes por titular.</p>

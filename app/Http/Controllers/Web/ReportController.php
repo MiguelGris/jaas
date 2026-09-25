@@ -23,6 +23,8 @@ final class ReportController extends Controller
         abort_unless(in_array($report, [
             'cash-flow',
             'annual-balance',
+            'payment-concepts-monthly',
+            'payment-concepts-annual',
             'debtors',
             'debt-aging',
             'payment-methods',

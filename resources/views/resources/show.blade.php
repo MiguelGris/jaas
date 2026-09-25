@@ -48,4 +48,48 @@
             </div>
         @endunless
     </div>
+
+    @if ($resource === 'payments')
+        <section class="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
+                <h2 class="font-semibold text-slate-800">Conceptos pagados</h2>
+                <p class="mt-1 text-sm text-slate-500">Detalle de servicios, moras y multas incluidos en este recibo.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-100 text-left text-sm">
+                    <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                        <tr>
+                            <th class="px-5 py-3 font-semibold sm:px-6">Tipo</th>
+                            <th class="px-5 py-3 font-semibold">Concepto</th>
+                            <th class="px-5 py-3 font-semibold">Detalle</th>
+                            <th class="px-5 py-3 text-right font-semibold sm:px-6">Importe</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach ($paymentConcepts as $concept)
+                            <tr>
+                                <td class="whitespace-nowrap px-5 py-3.5 sm:px-6">
+                                    <span @class([
+                                        'rounded-full px-2 py-1 text-xs font-semibold',
+                                        'bg-emerald-50 text-emerald-700' => $concept['category'] === 'Servicio',
+                                        'bg-amber-50 text-amber-700' => $concept['category'] === 'Mora',
+                                        'bg-rose-50 text-rose-700' => $concept['category'] === 'Multa',
+                                    ])>{{ $concept['category'] }}</span>
+                                </td>
+                                <td class="whitespace-nowrap px-5 py-3.5 font-semibold text-slate-700">{{ $concept['concept'] }}</td>
+                                <td class="px-5 py-3.5 text-slate-600">{{ $concept['detail'] }}</td>
+                                <td class="whitespace-nowrap px-5 py-3.5 text-right font-semibold text-slate-800 sm:px-6">S/ {{ number_format($concept['amount'], 2) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                    <tfoot class="border-t border-slate-200 bg-slate-50">
+                        <tr>
+                            <td colspan="3" class="px-5 py-3 text-right text-sm font-bold text-slate-700">Total del recibo</td>
+                            <td class="whitespace-nowrap px-5 py-3 text-right text-base font-bold text-slate-900 sm:px-6">S/ {{ number_format((float) $record->amount, 2) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+    @endif
 @endsection

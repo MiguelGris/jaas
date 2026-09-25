@@ -90,7 +90,9 @@ class PaymentCancellationTest extends TestCase
             ->get(route('receipts.thermal', ['payment' => $payment->id]))
             ->assertOk()
             ->assertSee('RECIBO ANULADO')
-            ->assertSee('Se seleccionó al cliente equivocado.');
+            ->assertSee('Se seleccionó al cliente equivocado.')
+            ->assertSee('@page { size: 58mm auto; margin: 0; }', false)
+            ->assertSee('papel de 58 mm');
     }
 
     /** @return array{User, Customer, Invoice} */

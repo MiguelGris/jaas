@@ -16,7 +16,10 @@ use Illuminate\Support\Collection;
 
 final class ReportService
 {
-    public function __construct(private readonly DebtService $debts) {}
+    public function __construct(
+        private readonly DebtService $debts,
+        private readonly PaymentConceptService $paymentConcepts,
+    ) {}
 
     /**
      * @param  array{month?: string|null, year?: int|string|null, assembly_id?: int|string|null}  $filters
@@ -27,6 +30,8 @@ final class ReportService
         return match ($report) {
             'cash-flow' => $this->cashFlow($filters['month'] ?? null),
             'annual-balance' => $this->annualBalance($filters['year'] ?? null),
+            'payment-concepts-monthly' => $this->paymentConceptsMonthly($filters['month'] ?? null),
+            'payment-concepts-annual' => $this->paymentConceptsAnnual($filters['year'] ?? null),
             'debtors' => $this->debtors(),
             'debt-aging' => $this->debtAging(),
             'payment-methods' => $this->paymentMethods($filters['month'] ?? null),
@@ -147,6 +152,87 @@ final class ReportService
             'Lista de morosos', 'Cuotas vencidas y multas pendientes al '.now()->format('d/m/Y'), 'morosos-'.now()->format('Y-m-d'),
             ['Código', 'DNI', 'Titular', 'Teléfono', 'Cuotas vencidas', 'Multas', 'Deuda morosa'], $rows->all(),
             ['Morosos' => $rows->count(), 'Deuda morosa total' => round($rows->sum(6), 2)], [6],
+        );
+    }
+
+    private function paymentConceptsMonthly(?string $month): array
+    {
+        $period = Carbon::createFromFormat('Y-m', $month ?: now()->format('Y-m'))->startOfMonth();
+        $start = $period->copy()->startOfMonth();
+        $end = $period->copy()->endOfMonth();
+        $concepts = $this->paymentConcepts->totals($start, $end);
+        $otherIncome = round((float) Income::query()->whereBetween('received_on', [$start, $end])->sum('amount'), 2);
+        $expenses = round((float) Expense::query()->whereBetween('incurred_on', [$start, $end])->sum('amount'), 2);
+        $collection = round($concepts['services'] + $concepts['fines'] + $concepts['late_fees'], 2);
+        $totalIncome = round($collection + $otherIncome, 2);
+        $rows = [
+            ['Servicios', $concepts['services']],
+            ['Multas', $concepts['fines']],
+            ['Moras', $concepts['late_fees']],
+            ['Otros ingresos', $otherIncome],
+            ['Egresos', $expenses],
+        ];
+
+        return $this->document(
+            'Resumen mensual por concepto', $period->translatedFormat('F Y'), 'conceptos-mensual-'.$period->format('Y-m'),
+            ['Concepto', 'Monto'], $rows,
+            [
+                'Recaudación por pagos' => $collection,
+                'Entradas totales' => $totalIncome,
+                'Egresos totales' => $expenses,
+                'Saldo del período' => round($totalIncome - $expenses, 2),
+            ], [1],
+        );
+    }
+
+    private function paymentConceptsAnnual(int|string|null $selectedYear): array
+    {
+        $year = (int) ($selectedYear ?: now()->year);
+        $concepts = $this->paymentConcepts->totalsByMonth($year);
+        $incomes = Income::query()
+            ->whereYear('received_on', $year)
+            ->get()
+            ->groupBy(fn (Income $income): int => $income->received_on->month)
+            ->map(fn (Collection $items): float => round((float) $items->sum('amount'), 2));
+        $expenses = Expense::query()
+            ->whereYear('incurred_on', $year)
+            ->get()
+            ->groupBy(fn (Expense $expense): int => $expense->incurred_on->month)
+            ->map(fn (Collection $items): float => round((float) $items->sum('amount'), 2));
+        $rows = collect(range(1, 12))->map(function (int $month) use ($year, $concepts, $incomes, $expenses): array {
+            $services = $concepts[$month]['services'];
+            $fines = $concepts[$month]['fines'];
+            $lateFees = $concepts[$month]['late_fees'];
+            $otherIncome = (float) $incomes->get($month, 0);
+            $expense = (float) $expenses->get($month, 0);
+
+            return [
+                Carbon::create($year, $month, 1)->locale('es')->translatedFormat('F'),
+                $services,
+                $fines,
+                $lateFees,
+                $otherIncome,
+                $expense,
+                round($services + $fines + $lateFees + $otherIncome - $expense, 2),
+            ];
+        });
+        $totalServices = round((float) $rows->sum(1), 2);
+        $totalFines = round((float) $rows->sum(2), 2);
+        $totalLateFees = round((float) $rows->sum(3), 2);
+        $totalOtherIncome = round((float) $rows->sum(4), 2);
+        $totalExpenses = round((float) $rows->sum(5), 2);
+
+        return $this->document(
+            'Resumen anual por concepto', "Ejercicio {$year}", "conceptos-anual-{$year}",
+            ['Mes', 'Servicios', 'Multas', 'Moras', 'Otros ingresos', 'Egresos', 'Saldo'], $rows->all(),
+            [
+                'Servicios' => $totalServices,
+                'Multas' => $totalFines,
+                'Moras' => $totalLateFees,
+                'Otros ingresos' => $totalOtherIncome,
+                'Egresos' => $totalExpenses,
+                'Saldo anual' => round($totalServices + $totalFines + $totalLateFees + $totalOtherIncome - $totalExpenses, 2),
+            ], [1, 2, 3, 4, 5, 6],
         );
     }
 
