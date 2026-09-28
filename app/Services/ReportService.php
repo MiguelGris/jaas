@@ -14,6 +14,10 @@ use App\Support\CatalogLabel;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
+/**
+ * Convierte los datos operativos en una estructura común que luego puede
+ * exportarse a Excel o PDF sin duplicar reglas de cálculo en cada formato.
+ */
 final class ReportService
 {
     public function __construct(
@@ -23,7 +27,7 @@ final class ReportService
 
     /**
      * @param  array{month?: string|null, year?: int|string|null, assembly_id?: int|string|null}  $filters
-     * @return array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>}
+     * @return array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>, intro_tables: list<array{title: string, headers: list<string>, rows: list<list<string|int|float>>}>}
      */
     public function build(string $report, array $filters = []): array
     {
@@ -382,6 +386,10 @@ final class ReportService
             ->get();
         $attendanceData = $attendances->map(function (AssemblyAttendance $attendance): array {
             $customer = $attendance->customer;
+
+            // La asistencia pertenece al titular, no a un predio específico.
+            // Para agruparlo una sola vez se usa su primer predio activo y, si
+            // no existe, el primer predio histórico disponible.
             $property = $customer?->properties->firstWhere('active', true) ?? $customer?->properties->first();
 
             return [
@@ -490,6 +498,8 @@ final class ReportService
      */
     private function document(string $title, string $subtitle, string $filename, array $headers, array $rows, array $summary, array $currencyColumns, array $introTables = []): array
     {
+        // Mantener un contrato único simplifica los exportadores. Las tablas
+        // introductorias son opcionales y se usan, por ejemplo, en asistencias.
         return [
             'title' => $title,
             'subtitle' => $subtitle,

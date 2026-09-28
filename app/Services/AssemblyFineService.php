@@ -10,6 +10,7 @@ use App\Models\User;
 
 final class AssemblyFineService
 {
+    /** Prepara el padrón de la asamblea sin duplicar registros existentes. */
     public function prepareAttendance(Assembly $assembly): void
     {
         Customer::query()
@@ -24,6 +25,7 @@ final class AssemblyFineService
             });
     }
 
+    /** Genera las multas de todos los titulares activos que no asistieron. */
     public function applyAbsenceFines(Assembly $assembly): int
     {
         if ((float) $assembly->absence_fine <= 0) {
@@ -48,8 +50,8 @@ final class AssemblyFineService
     }
 
     /**
-     * Keep the absence fine aligned with the attendance state without changing
-     * payments or their allocations. Returns true only when a fine is created.
+     * Mantiene la multa alineada con la asistencia sin modificar pagos ni sus
+     * asignaciones. Devuelve true solamente cuando crea una multa nueva.
      */
     public function synchroniseAttendanceFine(AssemblyAttendance $attendance): bool
     {
@@ -108,6 +110,9 @@ final class AssemblyFineService
         $audit = app(AuditService::class);
         $before = $audit->snapshot($fine);
 
+        // Una multa ya cobrada no se elimina: se anula para conservar el recibo,
+        // la asignación y el saldo histórico de caja. Solo las pendientes sin
+        // pagos pueden eliminarse de forma segura.
         if ($fine->paymentAllocations()->exists()) {
             if ($fine->status !== 'CANCELLED') {
                 $fine->status = 'CANCELLED';

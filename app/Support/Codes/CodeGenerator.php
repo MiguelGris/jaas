@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 final class CodeGenerator
 {
     /**
-     * @param array{series: string, prefix: string, padding: int, date_field?: string} $definition
+     * @param  array{series: string, prefix: string, padding: int, date_field?: string}  $definition
      */
     public static function next(array $definition, mixed $date = null): string
     {
@@ -27,8 +27,8 @@ final class CodeGenerator
 
     private static function nextNumber(string $series): int
     {
-        // The row lock ensures that two concurrent creations cannot receive
-        // the same value. Gaps are acceptable when a later save is rolled back.
+        // El bloqueo de fila impide que dos creaciones simultáneas reciban el
+        // mismo código. Se permiten saltos si una operación posterior se revierte.
         return DB::transaction(function () use ($series): int {
             $row = DB::table('code_sequences')
                 ->where('series', $series)

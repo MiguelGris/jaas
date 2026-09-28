@@ -12,7 +12,7 @@ use Illuminate\Support\Collection;
 final class PaymentConceptService
 {
     /**
-     * Build the human-readable concepts that compose one receipt.
+     * Construye los conceptos legibles que componen un recibo.
      *
      * @return list<array{category: string, concept: string, detail: string, amount: float}>
      */
@@ -165,6 +165,8 @@ final class PaymentConceptService
      */
     private function allocationsThrough(CarbonInterface $end): Collection
     {
+        // Se procesa en orden cronológico para repartir correctamente pagos
+        // parciales sucesivos entre servicio, multa incluida y mora.
         return PaymentAllocation::query()
             ->whereHas('payment', fn ($query) => $query->active()->where('paid_at', '<=', $end))
             ->with(['payment', 'invoice', 'fine'])
@@ -227,6 +229,9 @@ final class PaymentConceptService
      */
     private function splitInvoiceAmount(Invoice $invoice, float $amount, float $offset): array
     {
+        // Una cuota se interpreta como segmentos consecutivos. El desplazamiento
+        // indica cuánto cubrieron pagos anteriores y evita contar dos veces un
+        // mismo concepto en recibos o reportes.
         $allocationStart = max(0.0, $offset);
         $allocationEnd = $allocationStart + max(0.0, $amount);
         $segments = [

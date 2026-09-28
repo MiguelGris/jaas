@@ -9,11 +9,14 @@ class Connection extends JassModel
     use HasGeneratedCode;
 
     public const PAYMENT_FIXED = 'FIXED';
+
     public const PAYMENT_METERED = 'METERED';
 
     protected static function booted(): void
     {
         static::created(function (self $connection): void {
+            // Toda conexión nueva empieza como residencial cuando el catálogo
+            // dispone de ese tipo; luego puede cambiarse desde la asignación.
             $usageTypeId = UsageType::query()
                 ->whereIn('name', ['RESIDENTIAL', 'RESIDENCIAL'])
                 ->value('id');
@@ -27,6 +30,7 @@ class Connection extends JassModel
             }
         });
     }
+
     protected function casts(): array
     {
         return ['installed_on' => 'date'];

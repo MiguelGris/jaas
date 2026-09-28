@@ -50,10 +50,11 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
- * Server-rendered management pages for the JASS domain.
+ * Páginas administrativas renderizadas en el servidor.
  *
- * A resource registry keeps menus, fields, relation selectors and validation
- * in one place, so the same Blade templates can render every module.
+ * El registro de recursos concentra menús, campos, relaciones y validaciones.
+ * De este modo las mismas vistas Blade sirven para todos los módulos sin
+ * duplicar controladores y formularios para cada catálogo.
  */
 final class JassPageController extends Controller
 {

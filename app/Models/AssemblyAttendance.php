@@ -11,6 +11,8 @@ class AssemblyAttendance extends JassModel
     protected static function booted(): void
     {
         static::saving(function (self $attendance): void {
+            // La hora representa el momento en que cambió a asistente. Al
+            // desmarcarlo se limpia para no mostrar una llegada que ya no vale.
             if ($attendance->isDirty('attended')) {
                 $attendance->attended_at = $attendance->attended ? now() : null;
             }
@@ -21,6 +23,8 @@ class AssemblyAttendance extends JassModel
         });
 
         static::updated(function (self $attendance): void {
+            // Centralizarlo en el modelo mantiene la multa consistente tanto
+            // desde formularios web como desde el lector o la API.
             if ($attendance->wasChanged('attended')) {
                 app(AssemblyFineService::class)->synchroniseAttendanceFine($attendance);
             }

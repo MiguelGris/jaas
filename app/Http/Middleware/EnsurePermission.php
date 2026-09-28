@@ -14,6 +14,8 @@ final class EnsurePermission
 
         abort_unless($user !== null && $user->role !== null, 403);
 
+        // El administrador conserva acceso total aunque cambie el catálogo de
+        // permisos; los demás roles deben tener el permiso exacto del módulo.
         if ($user->role->name === 'ADMINISTRATOR') {
             return $next($request);
         }
@@ -31,6 +33,8 @@ final class EnsurePermission
 
     private function permissionFor(Request $request): ?string
     {
+        // Las rutas genéricas indican el recurso como parámetro. Las rutas
+        // especializadas (reportes, cobranza, etc.) se deducen por su nombre.
         $resource = $request->route('resource') ?? $this->resourceFromRouteName($request);
 
         return match ($resource) {

@@ -15,8 +15,8 @@ use Illuminate\Validation\ValidationException;
 final class CashService
 {
     /**
-     * Calculate the live cash balance from the last monthly closing plus all
-     * movements registered after that closed period.
+     * Calcula el saldo actual desde el último cierre más todos los movimientos
+     * registrados después de ese periodo cerrado.
      *
      * @return array{balance: float, opening_balance: float, income: float, expense: float, last_closing: ?CashClosing, starts_on: ?Carbon}
      */
@@ -40,6 +40,10 @@ final class CashService
     }
 
     /**
+     * Previsualiza un cierre sin guardar cambios. Si se solicita bloqueo, el
+     * último cierre queda protegido dentro de la transacción para impedir que
+     * dos usuarios cierren periodos simultáneamente.
+     *
      * @return array{year: int, month: int, starts_on: ?Carbon, ends_on: Carbon, previous_closing: ?CashClosing, previous_balance: float, total_income: float, total_expense: float, balance: float}
      */
     public function preview(int $year, int $month, bool $lock = false): array
@@ -91,6 +95,8 @@ final class CashService
 
     public function close(int $year, int $month, User $user): CashClosing
     {
+        // La previsualización bloqueada y el guardado forman una sola operación
+        // atómica; así el saldo no cambia entre el cálculo y la confirmación.
         return DB::transaction(function () use ($year, $month, $user): CashClosing {
             $summary = $this->preview($year, $month, true);
 

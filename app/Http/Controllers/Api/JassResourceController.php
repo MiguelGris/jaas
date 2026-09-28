@@ -44,11 +44,11 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Generic REST controller for the JASS domain.
+ * Controlador REST genérico para los recursos de la JASS.
  *
- * Each public resource has an explicit model, validation rules and allowed
- * relationships in resourceDefinitions(). This keeps endpoints consistent
- * while avoiding mass assignment of attributes that do not belong to a model.
+ * Cada recurso declara expresamente su modelo, validaciones y relaciones en
+ * resourceDefinitions(). Esto mantiene respuestas consistentes y evita aceptar
+ * atributos que no pertenecen al modelo solicitado.
  */
 final class JassResourceController extends Controller
 {

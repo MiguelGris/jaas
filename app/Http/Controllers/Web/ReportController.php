@@ -59,6 +59,8 @@ final class ReportController extends Controller
         $sheet->setCellValue('A2', $document['subtitle']);
         $currentRow = 4;
 
+        // Algunos reportes incluyen tablas de resumen antes del detalle. La
+        // fila se calcula dinámicamente para que Excel conserve ese mismo orden.
         foreach ($document['intro_tables'] ?? [] as $table) {
             $titleRow = $currentRow;
             $sheet->mergeCells("A{$titleRow}:{$lastColumn}{$titleRow}");
@@ -107,6 +109,8 @@ final class ReportController extends Controller
         $sheet->getStyle("A{$mainHeaderRow}:{$lastColumn}{$mainHeaderRow}")->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
         $sheet->getStyle("A{$mainHeaderRow}:{$lastColumn}{$mainHeaderRow}")->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('0369A1');
         $sheet->getStyle("A1:{$lastColumn}{$mainDataLastRow}")->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        // Al congelar justo debajo del encabezado principal, el usuario puede
+        // recorrer listados extensos sin perder los nombres de las columnas.
         $sheet->freezePane("A{$mainDataRow}");
 
         foreach ($document['headers'] as $index => $_header) {

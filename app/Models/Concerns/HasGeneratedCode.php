@@ -14,9 +14,12 @@ trait HasGeneratedCode
             $field = $definition['field'];
 
             if ($model->getAttribute($field) !== null) {
+                // Respeta códigos importados o definidos expresamente.
                 return;
             }
 
+            // El modelo solo declara su formato; la secuencia concurrente se
+            // resuelve en un único generador compartido por toda la aplicación.
             $model->setAttribute(
                 $field,
                 CodeGenerator::next($definition, $model->getAttribute($definition['date_field'] ?? ''))

@@ -18,6 +18,12 @@ final class PaymentCollectionService
     public function __construct(private readonly DebtService $debts) {}
 
     /**
+     * Registra un pago completo sobre las cuotas y multas seleccionadas.
+     *
+     * Todo se ejecuta en una sola transacción para impedir recibos parciales:
+     * o se guardan el pago, sus asignaciones y los nuevos estados, o no se
+     * guarda nada.
+     *
      * @param  list<int|string>  $invoiceIds
      * @param  list<int|string>  $fineIds
      * @param  array{payment_method_id: int|string, notes?: string|null}  $details
@@ -35,6 +41,8 @@ final class PaymentCollectionService
             $date = now();
             $allocations = [];
 
+            // El bloqueo evita que dos cajeros cobren simultáneamente el mismo
+            // saldo pendiente antes de que el primer pago sea confirmado.
             foreach ($invoiceIds as $invoiceId) {
                 $invoice = Invoice::query()
                     ->lockForUpdate()
@@ -78,6 +86,9 @@ final class PaymentCollectionService
             }
 
             $amount = round(array_sum(array_column($allocations, 'amount')), 2);
+
+            // El pago es la entrada de caja; las asignaciones siguientes solo
+            // explican a qué documentos corresponde ese importe.
             $payment = Payment::query()->create([
                 'customer_id' => $customer->getKey(),
                 'invoice_id' => null,

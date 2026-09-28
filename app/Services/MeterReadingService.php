@@ -52,6 +52,13 @@ final class MeterReadingService
         });
     }
 
+    /**
+     * Recorre cronológicamente todas las lecturas del medidor.
+     *
+     * Se recalcula la cadena completa porque insertar, editar o eliminar una
+     * lectura antigua modifica la lectura anterior y el consumo de las
+     * posteriores.
+     */
     public function recalculateForMeter(Meter $meter): void
     {
         $previous = (float) $meter->initial_reading;

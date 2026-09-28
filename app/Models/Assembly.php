@@ -8,11 +8,14 @@ use App\Services\AssemblyFineService;
 class Assembly extends JassModel
 {
     use HasGeneratedCode;
+
     const UPDATED_AT = null;
 
     protected static function booted(): void
     {
         static::created(function (self $assembly): void {
+            // La lista nace junto con la asamblea para que el lector y la edición
+            // manual trabajen sobre el mismo padrón desde el primer momento.
             app(AssemblyFineService::class)->prepareAttendance($assembly);
 
             if ($assembly->status === 'HELD') {
@@ -21,6 +24,8 @@ class Assembly extends JassModel
         });
 
         static::updated(function (self $assembly): void {
+            // Las multas se generan al cerrar la asistencia, no mientras la
+            // asamblea continúa programada y todavía pueden llegar titulares.
             if ($assembly->wasChanged('status') && $assembly->status === 'HELD') {
                 app(AssemblyFineService::class)->applyAbsenceFines($assembly);
             }

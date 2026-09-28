@@ -22,6 +22,8 @@ final class GenerateMonthlyCharges extends Command
             return self::INVALID;
         }
 
+        // La opción permite recuperar un mes omitido. Sin ella, el programador
+        // siempre trabaja con el mes actual y el servicio evita duplicados.
         $period = Carbon::parse($month ?? now())->startOfMonth();
         $created = $billing->generateForMonth($period);
 

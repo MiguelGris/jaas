@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
+/** Registra cambios relevantes sin copiar contraseñas ni datos de sesión. */
 final class AuditService
 {
     /** @return array<string, mixed> */
@@ -37,6 +38,8 @@ final class AuditService
         $oldValues = [];
         $newValues = [];
 
+        // Solo se almacenan los campos realmente modificados. Esto mantiene la
+        // bitácora legible incluso en modelos con muchos atributos.
         foreach (array_unique([...array_keys($before), ...array_keys($after)]) as $attribute) {
             $oldValue = $before[$attribute] ?? null;
             $newValue = $after[$attribute] ?? null;
@@ -78,6 +81,8 @@ final class AuditService
     private function record(?User $user, Model $model, string $action, ?array $oldValues, ?array $newValues): void
     {
         if ($user === null || $model instanceof AuditLog) {
+            // Los procesos programados pueden no tener usuario y auditar una
+            // entrada de auditoría provocaría una recursión infinita.
             return;
         }
 

@@ -14,9 +14,16 @@ final class PaymentCancellationService
         private readonly CashService $cash,
     ) {}
 
+    /**
+     * Anula un pago sin borrarlo, preservando el recibo y la trazabilidad.
+     *
+     * Al dejar de ser un pago activo ya no suma en caja. Luego se recalculan
+     * las cuotas y multas relacionadas para restaurar sus saldos pendientes.
+     */
     public function cancel(Payment $payment, User $user, string $reason): Payment
     {
         return DB::transaction(function () use ($payment, $user, $reason): Payment {
+            // Serializa anulaciones concurrentes del mismo comprobante.
             $payment = Payment::query()
                 ->with(['allocations.invoice', 'allocations.fine'])
                 ->lockForUpdate()
@@ -37,6 +44,8 @@ final class PaymentCancellationService
                 'void_reason' => trim($reason),
             ])->save();
 
+            // Las asignaciones se conservan como historial. Los servicios de
+            // deuda ignoran su importe porque ahora pertenecen a un pago anulado.
             $payment->allocations
                 ->pluck('invoice')
                 ->filter()

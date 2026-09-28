@@ -13,6 +13,9 @@ use Illuminate\Support\Collection;
 final class DebtService
 {
     /**
+     * Obtiene todo cargo pendiente, aunque todavía esté dentro del periodo
+     * permitido de pago. Este resultado alimenta la pantalla de cobranza.
+     *
      * @return array{invoices: Collection<int, Invoice>, fines: Collection<int, Fine>, total: float}
      */
     public function pendingForCustomer(Customer $customer, CarbonInterface|string|null $asOf = null): array
@@ -48,9 +51,10 @@ final class DebtService
     }
 
     /**
-     * Return only debts that already place the customer in arrears. Service
-     * charges remain current through their due date; every unpaid fine counts
-     * as arrears from the moment it is generated.
+     * Devuelve solamente deudas que ya convierten al titular en moroso.
+     *
+     * Las cuotas permanecen vigentes hasta su fecha de vencimiento; una multa
+     * pendiente cuenta como morosidad desde el momento en que se genera.
      *
      * @return array{invoices: Collection<int, Invoice>, fines: Collection<int, Fine>, total: float}
      */
@@ -114,6 +118,8 @@ final class DebtService
 
     public function decorateInvoice(Invoice $invoice, CarbonInterface|string|null $asOf = null): Invoice
     {
+        // Estos atributos son calculados para mostrar y cobrar la deuda sin
+        // persistirlos hasta que se confirme o anule un pago.
         $date = Carbon::parse($asOf ?? now());
         $calculatedLateFee = $this->lateFeeFor($invoice, $date);
         $lateFee = max((float) $invoice->late_fee, $calculatedLateFee);
@@ -142,6 +148,8 @@ final class DebtService
 
     public function synchroniseInvoice(Invoice $invoice, CarbonInterface|string|null $asOf = null): Invoice
     {
+        // Tras un cobro o anulación se recalculan total, mora y estado usando
+        // solamente asignaciones pertenecientes a pagos activos.
         $invoice = $this->decorateInvoice($invoice, $asOf);
         $lateFee = $invoice->calculated_late_fee;
         $total = $invoice->amount_due;
@@ -186,6 +194,7 @@ final class DebtService
             return 0;
         }
 
+        // El primer mes de mora es el mes calendario posterior al vencimiento.
         return $invoice->due_on->copy()->startOfMonth()->diffInMonths($date->copy()->startOfMonth());
     }
 
