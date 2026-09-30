@@ -2,15 +2,22 @@
 
 @php
     $editing = $record !== null;
+    $versioningRate = $editing && $resource === 'rates';
 @endphp
-@section('title', ($editing ? 'Editar ' : 'Nuevo ').Str::lower($definition['singular']))
-@section('heading', $editing ? 'Editar '.$definition['singular'] : 'Nuevo '.$definition['singular'])
+@section('title', ($versioningRate ? 'Nueva versión de ' : ($editing ? 'Editar ' : 'Nuevo ')).Str::lower($definition['singular']))
+@section('heading', $versioningRate ? 'Nueva versión de tarifa' : ($editing ? 'Editar '.$definition['singular'] : 'Nuevo '.$definition['singular']))
 
 @section('content')
     <div class="mb-6 flex items-center gap-3">
         <a href="{{ route('resources.index', ['resource' => $resource]) }}" class="rounded-lg px-2 py-1 text-sm font-semibold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700">← Volver</a>
-        <div><h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ $editing ? 'Editar '.$definition['singular'] : 'Registrar '.$definition['singular'] }}</h2><p class="mt-1 text-sm text-slate-500">Los campos marcados con <span class="text-rose-600">*</span> son obligatorios.</p></div>
+        <div><h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ $versioningRate ? 'Crear nueva versión de tarifa' : ($editing ? 'Editar '.$definition['singular'] : 'Registrar '.$definition['singular']) }}</h2><p class="mt-1 text-sm text-slate-500">Los campos marcados con <span class="text-rose-600">*</span> son obligatorios.</p></div>
     </div>
+
+    @if ($versioningRate)
+        <div class="mb-5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+            Indica una nueva fecha en <strong>Vigente desde</strong>. La versión actual se cerrará el día anterior y conservará sus importes históricos.
+        </div>
+    @endif
 
     <form method="POST" action="{{ $editing ? route('resources.update', ['resource' => $resource, 'record' => $record->getKey()]) : route('resources.store', ['resource' => $resource]) }}" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
         @csrf
@@ -36,6 +43,9 @@
                     }
                     $wide = $field['type'] === 'textarea';
                     $isRequired = $field['required'] && ! ($editing && ($field['optional_on_update'] ?? false));
+                    $isSearchableSelect = $field['type'] === 'select'
+                        && ! isset($field['choices'])
+                        && ($field['searchable'] ?? count($options[$name] ?? []) > 20);
                 @endphp
                 <div @class(['md:col-span-2' => $wide])>
                     @if ($field['type'] === 'checkbox')
@@ -45,20 +55,28 @@
                             {{ $field['label'] }}
                         </label>
                     @else
-                        <label for="{{ $name }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $field['label'] }} @if ($isRequired)<span class="text-rose-600">*</span>@endif</label>
+                        <label for="{{ $isSearchableSelect ? $name.'-search' : $name }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $field['label'] }} @if ($isRequired)<span class="text-rose-600">*</span>@endif</label>
                         @if ($editing && $field['type'] === 'password')<p class="mb-2 text-xs text-slate-500">Déjala en blanco para conservar la contraseña actual.</p>@endif
                         @if ($field['type'] === 'textarea')
                             <textarea id="{{ $name }}" name="{{ $name }}" rows="4" @required($isRequired) class="block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">{{ $value }}</textarea>
                         @elseif ($field['type'] === 'select')
-                            <div data-select-filter>
-                                <input type="search" placeholder="Buscar en la lista…" aria-label="Buscar {{ Str::lower($field['label']) }}" class="mb-2 block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">
+                            @if (! $isSearchableSelect)
                                 <select id="{{ $name }}" name="{{ $name }}" @required($isRequired) class="block w-full rounded-lg border-slate-300 bg-white text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">
                                     @if (! $field['required'])<option value="">Selecciona una opción</option>@endif
                                     @foreach ($options[$name] as $optionValue => $optionLabel)
                                         <option value="{{ $optionValue }}" @selected((string) $value === (string) $optionValue)>{{ $optionLabel }}</option>
                                     @endforeach
                                 </select>
-                            </div>
+                            @else
+                                @include('searchable-select', [
+                                    'name' => $name,
+                                    'searchId' => $name.'-search',
+                                    'options' => $options[$name],
+                                    'value' => $value,
+                                    'required' => $isRequired,
+                                    'placeholder' => 'Buscar '.Str::lower($field['label']).'…',
+                                ])
+                            @endif
                         @else
                             <input id="{{ $name }}" name="{{ $name }}" type="{{ $field['type'] }}" value="{{ $value }}" @required($isRequired) @if ($field['type'] === 'password') autocomplete="new-password" @endif @if ($field['type'] === 'number') step="{{ $field['step'] ?? '0.01' }}" @endif @if (isset($field['min'])) min="{{ $field['min'] }}" @endif @if (isset($field['max_value'])) max="{{ $field['max_value'] }}" @endif @if (isset($field['max']) && $field['type'] !== 'number') maxlength="{{ $field['max'] }}" @endif class="block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">
                         @endif
@@ -70,24 +88,7 @@
 
         <div class="mt-8 flex flex-col-reverse justify-end gap-3 border-t border-slate-100 pt-5 sm:flex-row">
             <a href="{{ route('resources.index', ['resource' => $resource]) }}" class="rounded-lg px-4 py-2.5 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-100">Cancelar</a>
-            <button type="submit" class="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">{{ $editing ? 'Guardar cambios' : 'Registrar' }}</button>
+            <button type="submit" class="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">{{ $versioningRate ? 'Crear nueva versión' : ($editing ? 'Guardar cambios' : 'Registrar') }}</button>
         </div>
     </form>
 @endsection
-
-@push('scripts')
-<script>
-document.querySelectorAll('[data-select-filter]').forEach((wrapper) => {
-    const search = wrapper.querySelector('input[type="search"]');
-    const select = wrapper.querySelector('select');
-    const options = [...select.options];
-
-    search.addEventListener('input', () => {
-        const term = search.value.trim().toLocaleLowerCase('es-PE');
-        options.forEach((option) => {
-            option.hidden = option.value !== '' && term !== '' && !option.text.toLocaleLowerCase('es-PE').includes(term);
-        });
-    });
-});
-</script>
-@endpush

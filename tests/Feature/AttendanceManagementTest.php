@@ -5,12 +5,17 @@ namespace Tests\Feature;
 use App\Models\Assembly;
 use App\Models\AssemblyAttendance;
 use App\Models\AssemblyType;
+use App\Models\Connection;
+use App\Models\ConnectionStatus;
+use App\Models\ConnectionType;
 use App\Models\Customer;
 use App\Models\CustomerStatus;
 use App\Models\Fine;
+use App\Models\Neighborhood;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentMethod;
+use App\Models\Property;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\CashService;
@@ -21,6 +26,85 @@ use Tests\TestCase;
 class AttendanceManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_absence_fines_require_at_least_one_active_connection(): void
+    {
+        $customerStatus = CustomerStatus::query()->create(['name' => 'ACTIVO']);
+        $withoutConnection = Customer::query()->create([
+            'first_name' => 'Sin',
+            'last_name' => 'Conexión',
+            'customer_status_id' => $customerStatus->id,
+            'registered_on' => '2026-09-01',
+        ]);
+        $withInactiveConnection = Customer::query()->create([
+            'first_name' => 'Con',
+            'last_name' => 'Conexión inactiva',
+            'customer_status_id' => $customerStatus->id,
+            'registered_on' => '2026-09-01',
+        ]);
+        $withActiveConnection = Customer::query()->create([
+            'first_name' => 'Con',
+            'last_name' => 'Conexión activa',
+            'customer_status_id' => $customerStatus->id,
+            'registered_on' => '2026-09-01',
+        ]);
+        $neighborhood = Neighborhood::query()->create(['name' => 'Barrio de prueba', 'active' => true]);
+        $connectionType = ConnectionType::query()->create(['name' => 'Agua']);
+        $inactiveStatus = ConnectionStatus::query()->create(['name' => 'INACTIVO']);
+        $activeStatus = ConnectionStatus::query()->create(['name' => 'ACTIVO']);
+
+        foreach ([
+            [$withInactiveConnection, $inactiveStatus],
+            [$withActiveConnection, $activeStatus],
+        ] as [$customer, $connectionStatus]) {
+            $property = Property::query()->create([
+                'customer_id' => $customer->id,
+                'neighborhood_id' => $neighborhood->id,
+                'address' => 'Dirección '.$customer->id,
+                'active' => true,
+            ]);
+            Connection::query()->create([
+                'property_id' => $property->id,
+                'connection_type_id' => $connectionType->id,
+                'connection_status_id' => $connectionStatus->id,
+            ]);
+        }
+
+        $assembly = Assembly::query()->create([
+            'assembly_type_id' => AssemblyType::query()->create(['name' => 'Asamblea'])->id,
+            'held_on' => '2026-09-30',
+            'absence_fine' => 10,
+            'status' => 'SCHEDULED',
+        ]);
+        $assembly->update(['status' => 'HELD']);
+
+        $this->assertDatabaseMissing('fines', [
+            'assembly_id' => $assembly->id,
+            'customer_id' => $withoutConnection->id,
+        ]);
+        $this->assertDatabaseMissing('fines', [
+            'assembly_id' => $assembly->id,
+            'customer_id' => $withInactiveConnection->id,
+        ]);
+        $this->assertDatabaseHas('fines', [
+            'assembly_id' => $assembly->id,
+            'customer_id' => $withActiveConnection->id,
+            'status' => 'PENDING',
+        ]);
+
+        // La corrección manual de una asistencia tampoco debe crear la multa.
+        $inactiveAttendance = AssemblyAttendance::query()
+            ->where('assembly_id', $assembly->id)
+            ->where('customer_id', $withInactiveConnection->id)
+            ->firstOrFail();
+        $inactiveAttendance->update(['attended' => true]);
+        $inactiveAttendance->update(['attended' => false]);
+
+        $this->assertDatabaseMissing('fines', [
+            'assembly_id' => $assembly->id,
+            'customer_id' => $withInactiveConnection->id,
+        ]);
+    }
 
     public function test_scanner_shows_confirmation_progress_and_attendance_list_has_no_delete_button(): void
     {
@@ -97,6 +181,17 @@ class AttendanceManagementTest extends TestCase
             'last_name' => 'Multa',
             'customer_status_id' => CustomerStatus::query()->create(['name' => 'ACTIVO'])->id,
             'registered_on' => '2026-09-01',
+        ]);
+        $property = Property::query()->create([
+            'customer_id' => $customer->id,
+            'neighborhood_id' => Neighborhood::query()->create(['name' => 'Sector de multas', 'active' => true])->id,
+            'address' => 'Dirección de prueba',
+            'active' => true,
+        ]);
+        Connection::query()->create([
+            'property_id' => $property->id,
+            'connection_type_id' => ConnectionType::query()->create(['name' => 'Agua'])->id,
+            'connection_status_id' => ConnectionStatus::query()->create(['name' => 'ACTIVO'])->id,
         ]);
         $assembly = Assembly::query()->create([
             'assembly_type_id' => AssemblyType::query()->create(['name' => 'Asamblea'])->id,

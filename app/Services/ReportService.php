@@ -26,7 +26,7 @@ final class ReportService
     ) {}
 
     /**
-     * @param  array{month?: string|null, year?: int|string|null, assembly_id?: int|string|null}  $filters
+     * @param  array{month?: string|null, year?: int|string|null, assembly_id?: int|string|null, customer_id?: int|string|null, period_type?: string|null, from?: string|null, to?: string|null}  $filters
      * @return array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>, intro_tables: list<array{title: string, headers: list<string>, rows: list<list<string|int|float>>}>}
      */
     public function build(string $report, array $filters = []): array
@@ -36,6 +36,13 @@ final class ReportService
             'annual-balance' => $this->annualBalance($filters['year'] ?? null),
             'payment-concepts-monthly' => $this->paymentConceptsMonthly($filters['month'] ?? null),
             'payment-concepts-annual' => $this->paymentConceptsAnnual($filters['year'] ?? null),
+            'customer-payment-history' => $this->customerPaymentHistory(
+                (int) ($filters['customer_id'] ?? 0),
+                $filters['period_type'] ?? null,
+                $filters['year'] ?? null,
+                $filters['from'] ?? null,
+                $filters['to'] ?? null,
+            ),
             'debtors' => $this->debtors(),
             'debt-aging' => $this->debtAging(),
             'payment-methods' => $this->paymentMethods($filters['month'] ?? null),
@@ -237,6 +244,80 @@ final class ReportService
                 'Egresos' => $totalExpenses,
                 'Saldo anual' => round($totalServices + $totalFines + $totalLateFees + $totalOtherIncome - $totalExpenses, 2),
             ], [1, 2, 3, 4, 5, 6],
+        );
+    }
+
+    private function customerPaymentHistory(int $customerId, ?string $periodType, int|string|null $selectedYear, ?string $from, ?string $to): array
+    {
+        $customer = Customer::query()->findOrFail($customerId);
+        $periodType ??= match (true) {
+            filled($selectedYear) => 'year',
+            filled($from) || filled($to) => 'range',
+            default => 'all',
+        };
+        $year = (int) ($selectedYear ?: now()->year);
+        $startsAt = match ($periodType) {
+            'year' => Carbon::create($year, 1, 1)->startOfDay(),
+            'range' => filled($from) ? Carbon::parse($from)->startOfDay() : null,
+            default => null,
+        };
+        $endsAt = match ($periodType) {
+            'year' => Carbon::create($year, 12, 31)->endOfDay(),
+            'range' => filled($to) ? Carbon::parse($to)->endOfDay() : null,
+            default => null,
+        };
+        $payments = Payment::query()
+            ->with(['customer', 'paymentMethod', 'user', 'allocations.invoice', 'allocations.fine.assembly'])
+            ->where('customer_id', $customer->getKey())
+            ->when($startsAt, fn ($query) => $query->where('paid_at', '>=', $startsAt))
+            ->when($endsAt, fn ($query) => $query->where('paid_at', '<=', $endsAt))
+            ->orderBy('paid_at')
+            ->orderBy('id')
+            ->get();
+        $rows = $payments->map(function (Payment $payment): array {
+            $customer = $payment->customer;
+            $concepts = collect($this->paymentConcepts->forPayment($payment))
+                ->map(fn (array $concept): string => $concept['category'].': '.$concept['detail'])
+                ->implode('; ');
+
+            return [
+                $payment->paid_at?->format('d/m/Y H:i') ?? '—',
+                $payment->receipt_code ?? '—',
+                $payment->operation_number ?? '—',
+                $customer?->national_id ?? '—',
+                trim(($customer?->last_name ?? '').', '.($customer?->first_name ?? '')),
+                CatalogLabel::value($payment->paymentMethod?->name ?? '—'),
+                $concepts,
+                $payment->status === Payment::STATUS_VOIDED ? 'Anulado' : 'Válido',
+                (float) $payment->amount,
+                $payment->user?->name ?? '—',
+            ];
+        });
+        $validPayments = $payments->where('status', Payment::STATUS_ACTIVE);
+        $period = match ($periodType) {
+            'year' => 'Año '.$year,
+            'range' => match (true) {
+                $startsAt !== null && $endsAt !== null => 'Del '.$startsAt->format('d/m/Y').' al '.$endsAt->format('d/m/Y'),
+                $startsAt !== null => 'Desde el '.$startsAt->format('d/m/Y'),
+                $endsAt !== null => 'Hasta el '.$endsAt->format('d/m/Y'),
+                default => 'Todas las fechas',
+            },
+            default => 'Todo el tiempo',
+        };
+        $customerName = trim($customer->last_name.', '.$customer->first_name);
+        $customerIdentity = collect([$customer->customer_code, $customer->national_id, $customerName])
+            ->filter()
+            ->implode(' · ');
+
+        return $this->document(
+            'Historial de pagos por cliente', "{$customerIdentity} · {$period}", 'historial-pagos-'.($customer->customer_code ?: $customer->getKey()).'-'.now()->format('Ymd'),
+            ['Fecha', 'Recibo', 'Operación', 'DNI', 'Cliente', 'Medio', 'Conceptos', 'Estado', 'Importe', 'Registrado por'], $rows->all(),
+            [
+                'Cliente' => $customerName,
+                'Pagos válidos' => $validPayments->count(),
+                'Pagos anulados' => $payments->where('status', Payment::STATUS_VOIDED)->count(),
+                'Total válido' => round((float) $validPayments->sum('amount'), 2),
+            ], [8],
         );
     }
 

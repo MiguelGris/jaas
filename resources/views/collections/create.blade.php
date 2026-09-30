@@ -18,13 +18,24 @@
     @endif
 
     <form method="GET" action="{{ route('collections.create') }}" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <label for="q" class="block text-sm font-semibold text-slate-700">Cliente</label>
-        <div class="mt-2 flex flex-col gap-3 sm:flex-row"><input id="q" name="q" value="{{ $search }}" placeholder="DNI, nombre o apellido" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"><button class="rounded-lg bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-900">Buscar</button></div>
+        <label for="collection-customer-search" class="block text-sm font-semibold text-slate-700">Cliente</label>
+        <div class="mt-2 flex flex-col gap-3 sm:flex-row sm:items-start">
+            <div class="min-w-0 flex-1">
+                @include('searchable-select', [
+                    'name' => 'customer',
+                    'searchId' => 'collection-customer-search',
+                    'options' => $customers->mapWithKeys(fn ($item) => [
+                        $item->id => $item->customer_code.' · DNI '.($item->national_id ?: 'sin registrar').' · '.trim($item->last_name.', '.$item->first_name),
+                    ])->all(),
+                    'value' => $customer?->id,
+                    'required' => true,
+                    'placeholder' => 'DNI, código, nombres o apellidos',
+                ])
+                <p class="mt-1 text-xs text-slate-500">Selecciona el resultado correcto verificando su código y DNI.</p>
+            </div>
+            <button class="rounded-lg bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-900">Consultar deudas</button>
+        </div>
     </form>
-
-    @if ($customers->isNotEmpty())
-        <div class="mt-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm font-bold text-slate-800">Resultados</p><div class="mt-3 grid gap-3 md:grid-cols-2">@foreach ($customers as $result)<a href="{{ route('collections.create', ['customer' => $result->id, 'q' => $search]) }}" class="rounded-lg border border-slate-200 px-4 py-3 transition hover:border-sky-300 hover:bg-sky-50"><span class="block font-semibold text-slate-800">{{ $result->last_name }}, {{ $result->first_name }}</span><span class="text-sm text-slate-500">DNI {{ $result->national_id ?? '—' }} · {{ $result->customer_code }}</span></a>@endforeach</div></div>
-    @endif
 
     @if ($customer)
         <form method="POST" action="{{ route('collections.store') }}" class="mt-6 space-y-5">

@@ -37,6 +37,7 @@ Route::middleware(['auth', 'active'])->group(function (): void {
 Route::middleware(['auth', 'active', 'permission:reports.view'])->group(function (): void {
     Route::get('/panel', [JassPageController::class, 'dashboard'])->name('dashboard');
     Route::get('/morosidad', [DelinquencyController::class, 'index'])->name('delinquencies.index');
+    Route::get('/reportes', [ReportController::class, 'index'])->name('reports.index');
     Route::get('/reportes/{report}/{format}', [ReportController::class, 'download'])->name('reports.download');
 });
 

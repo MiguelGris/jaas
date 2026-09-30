@@ -18,7 +18,7 @@
                 @endif
             @endif
             @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false))
-                <a href="{{ route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="rounded-lg bg-sky-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">Editar</a>
+                <a href="{{ route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="rounded-lg bg-sky-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">{{ $resource === 'rates' ? 'Nueva versión' : 'Editar' }}</a>
             @endunless
         </div>
     </div>
@@ -42,7 +42,7 @@
                 <div class="grid gap-1 px-5 py-4 sm:grid-cols-3 sm:gap-6 sm:px-6"><dt class="text-sm font-semibold text-slate-500">{{ $field['label'] }}</dt><dd class="text-sm text-slate-800 sm:col-span-2">@if ($isStructuredValue)<pre class="overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs leading-5 text-slate-100">{{ $value }}</pre>@else<span class="whitespace-pre-wrap">{{ ($value === null || $value === '') ? '—' : $value }}</span>@endif</dd></div>
             @endforeach
         </dl>
-        @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false))
+        @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || $resource === 'rates')
             <div class="flex justify-end border-t border-slate-100 bg-slate-50 px-5 py-4 sm:px-6">
                 <form method="POST" action="{{ route('resources.destroy', ['resource' => $resource, 'record' => $record->getKey()]) }}" onsubmit="return confirm('¿Eliminar este registro? Esta acción no se puede deshacer.');">@csrf @method('DELETE')<button type="submit" class="rounded-lg px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100">Eliminar</button></form>
             </div>

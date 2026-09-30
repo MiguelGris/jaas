@@ -16,7 +16,9 @@ final class MeterReadingService
         return DB::transaction(function () use ($attributes, $recordedBy): MeterReading {
             $meter = $this->readableMeter((int) $attributes['meter_id']);
             $this->ensureUniqueReadingDate($meter, (string) $attributes['read_on']);
-            $attributes['user_id'] = $attributes['user_id'] ?? $recordedBy;
+            // El responsable siempre es el usuario autenticado que registra
+            // la lectura; no se acepta la suplantación mediante el formulario.
+            $attributes['user_id'] = $recordedBy;
             $reading = MeterReading::query()->create($attributes);
 
             $this->recalculateForMeter($meter);

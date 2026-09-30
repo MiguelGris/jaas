@@ -162,6 +162,14 @@
                     <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'payment-concepts-annual', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
                 </form>
 
+                <form id="reporte-historial-pagos" method="GET" action="{{ route('reports.download', ['report' => 'customer-payment-history', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
+                    <h3 class="text-sm font-semibold text-slate-800">Historial de pagos por cliente</h3>
+                    <p class="mt-1 text-xs text-slate-500">Busca en el padrón y selecciona por código, DNI y nombre.</p>
+                    @include('reports._customer_selector', ['selectorId' => 'dashboard-payment-history-customer'])
+                    @include('reports._payment_history_period', ['periodId' => 'dashboard-payment-history-period'])
+                    <div class="mt-2 flex gap-2"><button type="submit" @disabled($reportCustomers->isEmpty()) class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'customer-payment-history', 'format' => 'pdf']) }}" formtarget="_blank" @disabled($reportCustomers->isEmpty()) class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50">Ver PDF</button></div>
+                </form>
+
                 <form id="reporte-morosos" method="GET" action="{{ route('reports.download', ['report' => 'debtors', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
                     <h3 class="text-sm font-semibold text-slate-800">Lista de morosos</h3>
                     <p class="mt-1 text-xs text-slate-500">Solo cuotas vencidas y multas pendientes por titular.</p>
@@ -190,8 +198,23 @@
                 @if ($assemblies->isNotEmpty())
                     <form id="reporte-asistencias" method="GET" action="{{ route('reports.download', ['report' => 'attendance', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
                         <h3 class="text-sm font-semibold text-slate-800">Asistencias a asambleas</h3>
-                        <label class="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="report-assembly">Asamblea</label>
-                        <select id="report-assembly" name="assembly_id" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">@foreach ($assemblies as $assembly)<option value="{{ $assembly->id }}">{{ $assembly->assembly_code }} · {{ $assembly->held_on->format('d/m/Y') }}</option>@endforeach</select>
+                        @php
+                            $dashboardAssemblyOptions = $assemblies->mapWithKeys(fn ($assembly) => [
+                                $assembly->id => $assembly->assembly_code.' · '.$assembly->held_on->format('d/m/Y').' · '.($assembly->place ?: 'Sin lugar'),
+                            ])->all();
+                            $searchDashboardAssemblies = count($dashboardAssemblyOptions) > 20;
+                        @endphp
+                        <label class="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="{{ $searchDashboardAssemblies ? 'dashboard-report-assembly-search' : 'dashboard-report-assembly' }}">Asamblea</label>
+                        <div class="mt-1">
+                            @include('adaptive-select', [
+                                'name' => 'assembly_id',
+                                'selectId' => 'dashboard-report-assembly',
+                                'searchId' => 'dashboard-report-assembly-search',
+                                'options' => $dashboardAssemblyOptions,
+                                'required' => true,
+                                'placeholder' => $searchDashboardAssemblies ? 'Código, fecha o lugar' : 'Selecciona una asamblea',
+                            ])
+                        </div>
                         <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'attendance', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
                     </form>
                 @else

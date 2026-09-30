@@ -2,16 +2,22 @@
 
 namespace Tests\Feature;
 
+use App\Models\BillingPeriod;
 use App\Models\Connection;
 use App\Models\ConnectionStatus;
 use App\Models\ConnectionType;
+use App\Models\ConnectionUsageType;
 use App\Models\Customer;
 use App\Models\CustomerStatus;
+use App\Models\Invoice;
 use App\Models\Meter;
 use App\Models\Neighborhood;
 use App\Models\Property;
+use App\Models\Rate;
 use App\Models\Role;
+use App\Models\UsageType;
 use App\Models\User;
+use App\Services\BillingService;
 use App\Services\MeterReadingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -99,7 +105,45 @@ class MeterReadingTest extends TestCase
             'previous_reading' => 40,
             'current_reading' => 52.5,
             'consumption' => 12.5,
+            'user_id' => $administrator->id,
         ]);
+    }
+
+    public function test_monthly_billing_uses_the_metered_consumption_and_unit_price(): void
+    {
+        [, $metered] = $this->connections();
+        $usageType = UsageType::query()->create(['name' => 'RESIDENCIAL']);
+        ConnectionUsageType::query()->create([
+            'connection_id' => $metered->id,
+            'usage_type_id' => $usageType->id,
+            'starts_on' => '2026-01-01',
+        ]);
+        BillingPeriod::query()->create(['months' => 3, 'description' => 'Trimestral']);
+        Rate::query()->create([
+            'usage_type_id' => $usageType->id,
+            'year' => 2026,
+            'amount' => 15,
+            'metered_unit_price' => 1.75,
+            'starts_on' => '2026-01-01',
+        ]);
+        $meter = Meter::query()->create([
+            'connection_id' => $metered->id,
+            'meter_number' => 'MED-FACT-001',
+            'initial_reading' => 100,
+            'active' => true,
+        ]);
+        app(MeterReadingService::class)->create([
+            'meter_id' => $meter->id,
+            'read_on' => '2026-09-28',
+            'current_reading' => 112,
+        ]);
+
+        $created = app(BillingService::class)->generateForMonth('2026-09');
+
+        $this->assertSame(1, $created);
+        $invoice = Invoice::query()->where('connection_id', $metered->id)->firstOrFail();
+        $this->assertSame('21.00', $invoice->rate);
+        $this->assertSame('21.00', $invoice->total);
     }
 
     /** @return array{Connection, Connection} */

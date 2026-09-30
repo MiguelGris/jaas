@@ -30,6 +30,9 @@
                         };
                     }
                     $wide = $field['type'] === 'textarea';
+                    $isSearchableSelect = $field['type'] === 'select'
+                        && ! isset($field['choices'])
+                        && ($field['searchable'] ?? count($options[$name] ?? []) > 20);
                 @endphp
                 <div @class(['md:col-span-2' => $wide])>
                     @if ($field['type'] === 'checkbox')
@@ -39,19 +42,27 @@
                             {{ $field['label'] }}
                         </label>
                     @else
-                        <label for="{{ $name }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $field['label'] }} @if ($field['required'])<span class="text-rose-600">*</span>@endif</label>
+                        <label for="{{ $isSearchableSelect ? $name.'-search' : $name }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $field['label'] }} @if ($field['required'])<span class="text-rose-600">*</span>@endif</label>
                         @if ($field['type'] === 'textarea')
                             <textarea id="{{ $name }}" name="{{ $name }}" rows="4" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">{{ $value }}</textarea>
                         @elseif ($field['type'] === 'select')
-                            <div data-select-filter>
-                                <input type="search" placeholder="Buscar en la lista…" aria-label="Buscar {{ Str::lower($field['label']) }}" class="mb-2 block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">
+                            @if (! $isSearchableSelect)
                                 <select id="{{ $name }}" name="{{ $name }}" class="block w-full rounded-lg border-slate-300 bg-white text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">
                                     @if (! $field['required'])<option value="">Selecciona una opción</option>@endif
                                     @foreach ($options[$name] as $optionValue => $optionLabel)
                                         <option value="{{ $optionValue }}" @selected((string) $value === (string) $optionValue)>{{ $optionLabel }}</option>
                                     @endforeach
                                 </select>
-                            </div>
+                            @else
+                                @include('searchable-select', [
+                                    'name' => $name,
+                                    'searchId' => $name.'-search',
+                                    'options' => $options[$name],
+                                    'value' => $value,
+                                    'required' => $field['required'],
+                                    'placeholder' => 'Buscar '.Str::lower($field['label']).'…',
+                                ])
+                            @endif
                         @else
                             <input id="{{ $name }}" name="{{ $name }}" type="{{ $field['type'] }}" value="{{ $value }}" @if ($field['type'] === 'number') step="0.01" @endif @if (isset($field['min'])) min="{{ $field['min'] }}" @endif @if (isset($field['max'])) maxlength="{{ $field['max'] }}" @endif class="block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">
                         @endif
@@ -67,20 +78,3 @@
         </div>
     </form>
 @endsection
-
-@push('scripts')
-<script>
-document.querySelectorAll('[data-select-filter]').forEach((wrapper) => {
-    const search = wrapper.querySelector('input[type="search"]');
-    const select = wrapper.querySelector('select');
-    const options = [...select.options];
-
-    search.addEventListener('input', () => {
-        const term = search.value.trim().toLocaleLowerCase('es-PE');
-        options.forEach((option) => {
-            option.hidden = option.value !== '' && term !== '' && !option.text.toLocaleLowerCase('es-PE').includes(term);
-        });
-    });
-});
-</script>
-@endpush

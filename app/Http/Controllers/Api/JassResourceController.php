@@ -37,6 +37,7 @@ use App\Models\User;
 use App\Services\AuditService;
 use App\Services\CashService;
 use App\Services\MeterReadingService;
+use App\Services\RateVersionService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
@@ -100,10 +101,14 @@ final class JassResourceController extends Controller
             $this->ensureMeterCanBeAssigned($attributes);
         }
 
-        $record = $resource === 'meter-readings'
-            ? app(MeterReadingService::class)->create($attributes, $request->user()?->getKey())
-            : $this->modelClass($definition)::create($attributes);
-        $audit->created($request->user(), $record);
+        $record = match ($resource) {
+            'rates' => app(RateVersionService::class)->create($attributes, $request->user()),
+            'meter-readings' => app(MeterReadingService::class)->create($attributes, $request->user()?->getKey()),
+            default => $this->modelClass($definition)::create($attributes),
+        };
+        if ($resource !== 'rates') {
+            $audit->created($request->user(), $record);
+        }
 
         return response()->json($record->load($definition['with']), 201);
     }
@@ -140,7 +145,9 @@ final class JassResourceController extends Controller
 
         $passwordChanged = $resource === 'users' && array_key_exists('password', $attributes);
 
-        if ($resource === 'meter-readings') {
+        if ($resource === 'rates') {
+            $model = app(RateVersionService::class)->revise($model, $attributes, $request->user());
+        } elseif ($resource === 'meter-readings') {
             $readingAttributes = array_merge(
                 $model->only(['meter_id', 'read_on', 'current_reading', 'user_id', 'notes']),
                 $attributes,
@@ -154,7 +161,9 @@ final class JassResourceController extends Controller
                 app(MeterReadingService::class)->recalculateForMeter($model);
             }
         }
-        $audit->updated($request->user(), $model, $before);
+        if ($resource !== 'rates') {
+            $audit->updated($request->user(), $model, $before);
+        }
         if ($passwordChanged) {
             $audit->passwordChanged($request->user(), $model);
         }
@@ -168,6 +177,7 @@ final class JassResourceController extends Controller
         $resource = $this->resourceName($request);
         abort_if($resource === 'cash-closings', 405, 'Los cierres de caja confirmados no se pueden eliminar.');
         $model = $this->find($this->definition($request), $record);
+        abort_if($resource === 'rates', 405, 'Las tarifas forman parte del historial y no se pueden eliminar.');
         $this->ensureCashMovementIsOpen($resource, [], $model);
         $before = $audit->snapshot($model);
 
@@ -596,7 +606,6 @@ final class JassResourceController extends Controller
                     'notes' => 'nullable|string|max:250',
                 ],
                 'with' => ['usageType'],
-                'compound_unique' => [['usage_type_id', 'year']],
             ],
             'invoices' => [
                 'model' => Invoice::class,
@@ -647,7 +656,6 @@ final class JassResourceController extends Controller
                     'meter_id' => 'required|integer|exists:meters,id',
                     'read_on' => 'required|date',
                     'current_reading' => 'required|numeric|min:0',
-                    'user_id' => 'nullable|integer|exists:users,id',
                     'notes' => 'nullable|string|max:250',
                 ],
                 'with' => ['meter', 'user'],

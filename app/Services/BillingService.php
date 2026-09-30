@@ -6,6 +6,7 @@ use App\Models\BillingPeriod;
 use App\Models\Connection;
 use App\Models\Invoice;
 use App\Models\LateFeeSetting;
+use App\Models\MeterReading;
 use App\Models\Rate;
 use App\Models\Setting;
 use Carbon\Carbon;
@@ -46,6 +47,14 @@ final class BillingService
                 return;
             }
 
+            $serviceAmount = $this->serviceAmountFor($connection, $rate, $periodStart, $periodEnd);
+
+            // En las conexiones con medidor se necesita por lo menos una
+            // lectura del mes y una tarifa por m³ antes de emitir la cuota.
+            if ($serviceAmount === null) {
+                return;
+            }
+
             $invoice = Invoice::query()->firstOrCreate(
                 [
                     'connection_id' => $connection->getKey(),
@@ -56,10 +65,10 @@ final class BillingService
                     'issued_on' => $this->issueDate($periodStart)->toDateString(),
                     'due_on' => $this->graceDeadline($periodStart, (int) $billingPeriod->months)->toDateString(),
                     'period_ends_on' => $periodEnd->toDateString(),
-                    'rate' => $rate->amount,
+                    'rate' => $serviceAmount,
                     'late_fee' => 0,
                     'fines' => 0,
-                    'total' => $rate->amount,
+                    'total' => $serviceAmount,
                     'status' => 'PENDING',
                 ],
             );
@@ -135,14 +144,35 @@ final class BillingService
 
     private function eligibleConnections(): Collection
     {
-        // La facturación automática actual solo aplica al pago fijo. Las
-        // conexiones con medidor se cobrarán cuando se habilite ese flujo.
         return Connection::query()
-            ->where('payment_mode', Connection::PAYMENT_FIXED)
+            ->whereIn('payment_mode', [Connection::PAYMENT_FIXED, Connection::PAYMENT_METERED])
             ->whereHas('connectionStatus', fn ($query) => $query->whereIn('name', ['ACTIVE', 'ACTIVO']))
             ->whereHas('property', fn ($query) => $query->where('active', true)
                 ->whereHas('customer.customerStatus', fn ($status) => $status->whereIn('name', ['ACTIVE', 'ACTIVO'])))
             ->get();
+    }
+
+    private function serviceAmountFor(Connection $connection, Rate $rate, Carbon $periodStart, Carbon $periodEnd): ?float
+    {
+        if ($connection->payment_mode === Connection::PAYMENT_FIXED) {
+            return round((float) $rate->amount, 2);
+        }
+
+        if ($rate->metered_unit_price === null) {
+            return null;
+        }
+
+        $readings = MeterReading::query()
+            ->whereHas('meter', fn ($query) => $query->where('connection_id', $connection->getKey()))
+            ->whereBetween('read_on', [$periodStart->toDateString(), $periodEnd->toDateString()]);
+
+        if (! $readings->exists()) {
+            return null;
+        }
+
+        // Si hubo un cambio de medidor o más de una lectura dentro del mes,
+        // se suman los consumos parciales para no perder volumen facturable.
+        return round((float) $readings->sum('consumption') * (float) $rate->metered_unit_price, 2);
     }
 
     private function usageTypeFor(Connection $connection, Carbon $periodStart, Carbon $periodEnd): ?int

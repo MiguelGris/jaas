@@ -105,7 +105,7 @@
                                     @endif
                                 @endif
                                 @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false))
-                                    <a href="{{ route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="ml-3 text-sm font-semibold text-sky-700 hover:text-sky-800">Editar</a>
+                                    <a href="{{ route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="ml-3 text-sm font-semibold text-sky-700 hover:text-sky-800">{{ $resource === 'rates' ? 'Nueva versión' : 'Editar' }}</a>
                                 @endunless
                                 @if ($definition['delete_on_index'] ?? false)
                                     <form method="POST" action="{{ route('resources.destroy', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="inline" onsubmit="return confirm({{ Js::from($deleteConfirmation) }});">

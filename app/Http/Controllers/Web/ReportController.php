@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Assembly;
+use App\Models\Customer;
 use App\Services\ReportService;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
@@ -17,6 +20,22 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class ReportController extends Controller
 {
+    public function __construct()
+    {
+        view()->share('navigation', JassPageController::navigation());
+    }
+
+    public function index(ReportService $reports): View
+    {
+        $assemblies = Assembly::query()->orderByDesc('held_on')->limit(100)->get();
+        $reportCustomers = Customer::query()
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get(['id', 'customer_code', 'national_id', 'first_name', 'last_name']);
+
+        return view('reports.index', compact('assemblies', 'reportCustomers', 'reports'));
+    }
+
     public function download(Request $request, string $report, string $format, ReportService $reports): StreamedResponse|
     Response
     {
@@ -25,6 +44,7 @@ final class ReportController extends Controller
             'annual-balance',
             'payment-concepts-monthly',
             'payment-concepts-annual',
+            'customer-payment-history',
             'debtors',
             'debt-aging',
             'payment-methods',
@@ -34,10 +54,16 @@ final class ReportController extends Controller
         ], true), 404);
         abort_unless(in_array($format, ['xlsx', 'pdf'], true), 404);
 
+        $isPaymentHistory = $report === 'customer-payment-history';
+        $periodType = $request->input('period_type');
         $data = $request->validate([
             'month' => ['nullable', 'date_format:Y-m'],
-            'year' => ['nullable', 'integer', 'between:2000,2100'],
+            'period_type' => [$isPaymentHistory ? 'required' : 'nullable', 'in:all,year,range'],
+            'year' => [$isPaymentHistory && $periodType === 'year' ? 'required' : 'nullable', 'integer', 'between:2000,2100'],
             'assembly_id' => ['nullable', 'integer', 'exists:assemblies,id'],
+            'customer_id' => [$isPaymentHistory ? 'required' : 'nullable', 'integer', 'exists:customers,id'],
+            'from' => [$isPaymentHistory && $periodType === 'range' ? 'required' : 'nullable', 'date'],
+            'to' => [$isPaymentHistory && $periodType === 'range' ? 'required' : 'nullable', 'date', 'after_or_equal:from'],
         ]);
         $document = $reports->build($report, $data);
 

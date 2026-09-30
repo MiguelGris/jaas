@@ -39,6 +39,7 @@ use App\Services\CashService;
 use App\Services\DebtService;
 use App\Services\MeterReadingService;
 use App\Services\PaymentConceptService;
+use App\Services\RateVersionService;
 use App\Services\ReportService;
 use App\Support\CatalogLabel;
 use Illuminate\Database\Eloquent\Model;
@@ -169,8 +170,12 @@ final class JassPageController extends Controller
             ->get();
 
         $assemblies = Assembly::query()->orderByDesc('held_on')->limit(30)->get();
+        $reportCustomers = Customer::query()
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get(['id', 'customer_code', 'national_id', 'first_name', 'last_name']);
 
-        return view('dashboard', compact('metrics', 'financialMetrics', 'movements', 'recentInvoices', 'assemblies', 'reports'));
+        return view('dashboard', compact('metrics', 'financialMetrics', 'movements', 'recentInvoices', 'assemblies', 'reportCustomers', 'reports'));
     }
 
     public function index(Request $request, string $resource): View
@@ -316,12 +321,16 @@ final class JassPageController extends Controller
             $this->ensureMeterCanBeAssigned($attributes);
         }
 
-        if ($resource === 'meter-readings') {
+        if ($resource === 'rates') {
+            $record = app(RateVersionService::class)->create($attributes, $request->user());
+        } elseif ($resource === 'meter-readings') {
             $record = app(MeterReadingService::class)->create($attributes, $request->user()?->getKey());
         } else {
             $record = $this->modelClass($definition)::create($attributes);
         }
-        $audit->created($request->user(), $record);
+        if ($resource !== 'rates') {
+            $audit->created($request->user(), $record);
+        }
 
         return redirect()
             ->route('resources.index', ['resource' => $resource])
@@ -390,7 +399,9 @@ final class JassPageController extends Controller
             $this->ensureMeterCanBeAssigned($attributes, $model);
         }
 
-        if ($resource === 'meter-readings') {
+        if ($resource === 'rates') {
+            $model = app(RateVersionService::class)->revise($model, $attributes, $request->user());
+        } elseif ($resource === 'meter-readings') {
             $model = app(MeterReadingService::class)->update($model, $attributes);
         } else {
             $model->fill($attributes)->save();
@@ -399,7 +410,9 @@ final class JassPageController extends Controller
                 app(MeterReadingService::class)->recalculateForMeter($model);
             }
         }
-        $audit->updated($request->user(), $model, $before);
+        if ($resource !== 'rates') {
+            $audit->updated($request->user(), $model, $before);
+        }
         if ($passwordChanged) {
             $audit->passwordChanged($request->user(), $model);
         }
@@ -414,6 +427,7 @@ final class JassPageController extends Controller
         $definition = $this->writableDefinition($resource);
         abort_if($definition['immutable'] ?? false, 403, 'Este registro contable no se puede eliminar.');
         $model = $this->find($definition, $record);
+        abort_if($resource === 'rates', 405, 'Las tarifas forman parte del historial y no se pueden eliminar.');
         $this->ensureCashMovementIsOpen($resource, [], $model);
         $audit = app(AuditService::class);
         $before = $audit->snapshot($model);
@@ -558,16 +572,7 @@ final class JassPageController extends Controller
                 ['label' => 'Lector de asistencia', 'route_name' => 'attendance.scanner', 'active' => 'attendance.*', 'permission' => 'assemblies.manage'],
             ],
             'Reportes' => [
-                ['label' => 'Flujo de caja mensual', 'route_name' => 'dashboard', 'fragment' => 'reporte-flujo-caja', 'permission' => 'reports.view'],
-                ['label' => 'Balance anual', 'route_name' => 'dashboard', 'fragment' => 'reporte-balance-anual', 'permission' => 'reports.view'],
-                ['label' => 'Conceptos de pago mensuales', 'route_name' => 'dashboard', 'fragment' => 'reporte-conceptos-mensual', 'permission' => 'reports.view'],
-                ['label' => 'Conceptos de pago anuales', 'route_name' => 'dashboard', 'fragment' => 'reporte-conceptos-anual', 'permission' => 'reports.view'],
-                ['label' => 'Lista de morosos', 'route_name' => 'delinquencies.index', 'active' => 'delinquencies.*', 'permission' => 'reports.view'],
-                ['label' => 'Antigüedad de deuda', 'route_name' => 'dashboard', 'fragment' => 'reporte-antiguedad-deuda', 'permission' => 'reports.view'],
-                ['label' => 'Recaudación por medio', 'route_name' => 'dashboard', 'fragment' => 'reporte-medios-pago', 'permission' => 'reports.view'],
-                ['label' => 'Padrón de conexiones', 'route_name' => 'dashboard', 'fragment' => 'reporte-padron-conexiones', 'permission' => 'reports.view'],
-                ['label' => 'Asistencias', 'route_name' => 'dashboard', 'fragment' => 'reporte-asistencias', 'permission' => 'reports.view'],
-                ['label' => 'Exonerados de faenas', 'route_name' => 'dashboard', 'fragment' => 'reporte-exonerados', 'permission' => 'reports.view'],
+                ['label' => 'Reportes', 'route_name' => 'reports.index', 'active' => 'reports.*', 'permission' => 'reports.view'],
             ],
             'Administración' => ['users', 'settings', 'roles', 'permissions', 'audit-logs'],
             'Catálogos' => ['customer-statuses', 'neighborhoods', 'connection-types', 'connection-statuses', 'usage-types', 'payment-methods', 'assembly-types', 'income-types', 'expense-categories'],
@@ -879,7 +884,7 @@ final class JassPageController extends Controller
             ], ['customer_code', 'national_id', 'first_name', 'last_name', 'customer_status_id']),
             'properties' => self::resource('Predios', 'Predio', Property::class, [
                 'customer_id' => self::select('Cliente', Customer::class, 'customer', true, 'last_name'),
-                'neighborhood_id' => self::select('Sector', Neighborhood::class, 'neighborhood'),
+                'neighborhood_id' => self::select('Sector o barrio', Neighborhood::class, 'neighborhood', true, 'name', false),
                 'address' => self::text('Dirección', true, 250),
                 'reference' => self::text('Referencia', false, 250),
                 'property_code' => self::code('Código de predio'),
@@ -913,7 +918,7 @@ final class JassPageController extends Controller
                 'previous_reading' => self::readonlyNumber('Lectura anterior'),
                 'current_reading' => self::number('Lectura actual', true, 0),
                 'consumption' => self::readonlyNumber('Consumo'),
-                'user_id' => self::select('Registrado por', User::class, 'user', false, 'name'),
+                'user_id' => self::readonlyRelation('Registrado por', User::class, 'user', 'name'),
                 'notes' => self::textarea('Observaciones', false),
             ], ['meter_id', 'read_on', 'previous_reading', 'current_reading', 'consumption', 'user_id']),
             'rates' => self::resource('Tarifas', 'Tarifa', Rate::class, [
@@ -925,7 +930,7 @@ final class JassPageController extends Controller
                 'ends_on' => self::date('Vigente hasta', false),
                 'approved_by_assembly' => self::checkbox('Aprobada por asamblea'),
                 'notes' => self::textarea('Notas', false),
-            ], ['usage_type_id', 'year', 'amount', 'metered_unit_price', 'starts_on', 'approved_by_assembly']),
+            ], ['usage_type_id', 'year', 'amount', 'metered_unit_price', 'starts_on', 'ends_on', 'approved_by_assembly']),
             'billing-periods' => self::resource('Ciclos de pago', 'Ciclo de pago', BillingPeriod::class, [
                 'months' => self::integerNumber('Meses', true, 1, 120),
                 'description' => self::text('Descripción', false, 100),
@@ -1182,12 +1187,26 @@ final class JassPageController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private static function select(string $label, string $model, string $relation, bool $required = true, string $optionLabel = 'name'): array
+    private static function select(string $label, string $model, string $relation, bool $required = true, string $optionLabel = 'name', ?bool $searchable = null): array
     {
-        return self::field($label, 'select', $required, [
+        if ($searchable === null) {
+            $searchable = match (true) {
+                in_array($model, [Customer::class, Property::class, Connection::class], true) => true,
+                in_array($model, [ConnectionType::class, UsageType::class, AssemblyType::class, IncomeType::class], true) => false,
+                default => null,
+            };
+        }
+
+        $configuration = [
             'relation' => $relation,
             'options' => ['model' => $model, 'label' => $optionLabel],
-        ]);
+        ];
+
+        if ($searchable !== null) {
+            $configuration['searchable'] = $searchable;
+        }
+
+        return self::field($label, 'select', $required, $configuration);
     }
 
     /** @return array<string, mixed> */

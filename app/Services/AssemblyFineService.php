@@ -39,6 +39,7 @@ final class AssemblyFineService
             ->where('assembly_id', $assembly->getKey())
             ->where('attended', false)
             ->whereHas('customer.customerStatus', fn ($query) => $query->whereIn('name', ['ACTIVE', 'ACTIVO']))
+            ->whereHas('customer.properties.connections.connectionStatus', fn ($query) => $query->whereIn('name', ['ACTIVE', 'ACTIVO']))
             ->with(['assembly', 'customer.customerStatus'])
             ->eachById(function (AssemblyAttendance $attendance) use (&$created): void {
                 if ($this->synchroniseAttendanceFine($attendance)) {
@@ -58,11 +59,15 @@ final class AssemblyFineService
         $attendance->loadMissing(['assembly', 'customer.customerStatus']);
         $assembly = $attendance->assembly;
         $customerStatus = strtoupper((string) $attendance->customer?->customerStatus?->name);
+        $hasActiveConnection = $attendance->customer?->properties()
+            ->whereHas('connections.connectionStatus', fn ($query) => $query->whereIn('name', ['ACTIVE', 'ACTIVO']))
+            ->exists() ?? false;
 
         $mustHaveFine = ! $attendance->attended
             && $assembly?->status === 'HELD'
             && (float) $assembly->absence_fine > 0
-            && in_array($customerStatus, ['ACTIVE', 'ACTIVO'], true);
+            && in_array($customerStatus, ['ACTIVE', 'ACTIVO'], true)
+            && $hasActiveConnection;
 
         if (! $mustHaveFine) {
             $this->removeOrCancelFine($attendance);

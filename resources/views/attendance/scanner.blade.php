@@ -24,13 +24,21 @@
         <form id="scanner-form" method="POST" action="{{ route('attendance.scan') }}" class="max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             @csrf
             <div>
-                <label for="assembly_id" class="mb-1.5 block text-sm font-semibold text-slate-700">Asamblea</label>
-                <select id="assembly_id" name="assembly_id" data-selection-url="{{ route('attendance.scanner') }}" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
-                    <option value="">Selecciona una asamblea</option>
-                    @foreach ($assemblies as $assembly)
-                        <option value="{{ $assembly->id }}" @selected((int) $selectedAssemblyId === $assembly->id)>{{ $assembly->assembly_code }} · {{ $assembly->held_on->format('d/m/Y') }}{{ $assembly->place ? ' · '.$assembly->place : '' }}</option>
-                    @endforeach
-                </select>
+                @php
+                    $assemblyOptions = $assemblies->mapWithKeys(fn ($assembly) => [
+                        $assembly->id => $assembly->assembly_code.' · '.$assembly->held_on->format('d/m/Y').($assembly->place ? ' · '.$assembly->place : ''),
+                    ])->all();
+                    $searchAssemblies = count($assemblyOptions) > 20;
+                @endphp
+                <label for="{{ $searchAssemblies ? 'attendance-assembly-search' : 'assembly_id' }}" class="mb-1.5 block text-sm font-semibold text-slate-700">Asamblea</label>
+                @include('adaptive-select', [
+                    'name' => 'assembly_id',
+                    'searchId' => 'attendance-assembly-search',
+                    'options' => $assemblyOptions,
+                    'value' => $selectedAssemblyId,
+                    'required' => true,
+                    'placeholder' => $searchAssemblies ? 'Código, fecha o lugar de la asamblea' : 'Selecciona una asamblea',
+                ])
                 @error('assembly_id')<p class="mt-1.5 text-sm font-medium text-rose-600">{{ $message }}</p>@enderror
             </div>
 
@@ -95,8 +103,9 @@
     if (!form || !input) return;
 
     assembly?.addEventListener('change', () => {
-        const url = new URL(assembly.dataset.selectionUrl, window.location.origin);
-        if (assembly.value) url.searchParams.set('assembly', assembly.value);
+        if (!assembly.value) return;
+        const url = new URL(@json(route('attendance.scanner')), window.location.origin);
+        url.searchParams.set('assembly', assembly.value);
         window.location.assign(url.toString());
     });
 

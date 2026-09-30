@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\PaymentMethod;
-use App\Services\DebtService;
 use App\Services\AuditService;
+use App\Services\DebtService;
 use App\Services\PaymentCollectionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,30 +21,20 @@ final class CollectionController extends Controller
 
     public function create(Request $request, DebtService $debts): View
     {
-        $search = trim((string) $request->query('q', ''));
         $customer = $request->filled('customer')
             ? Customer::query()->find($request->integer('customer'))
             : null;
 
-        $customers = $search === ''
-            ? collect()
-            : Customer::query()
-                ->where(function ($query) use ($search): void {
-                    $query->where('national_id', $search)
-                        ->orWhere('first_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%");
-                })
-                ->orderBy('last_name')
-                ->orderBy('first_name')
-                ->limit(12)
-                ->get();
+        $customers = Customer::query()
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get(['id', 'customer_code', 'national_id', 'first_name', 'last_name']);
 
         $charges = $customer === null
             ? ['invoices' => collect(), 'fines' => collect(), 'total' => 0]
             : $debts->pendingForCustomer($customer);
 
         return view('collections.create', [
-            'search' => $search,
             'customers' => $customers,
             'customer' => $customer,
             'invoices' => $charges['invoices'],
