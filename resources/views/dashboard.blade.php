@@ -4,12 +4,28 @@
 @section('heading', 'Panel principal')
 
 @section('content')
+    @php
+        $dashboardUser = auth()->user();
+        $isAdministrator = $dashboardUser->role?->name === 'ADMINISTRATOR';
+        $canUse = static fn (string $permission): bool => $isAdministrator
+            || $dashboardUser->role?->permissions->contains('name', $permission);
+    @endphp
     <div class="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-slate-900">Resumen operativo</h2>
             <p class="mt-1 text-sm text-slate-500">Consulta las cifras clave y continúa con la gestión diaria.</p>
         </div>
-        <a href="{{ route('resources.create', ['resource' => 'customers']) }}" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">+ Registrar cliente</a>
+        <div class="flex flex-wrap gap-2 sm:justify-end">
+            @if ($canUse('customers.create'))
+                <a href="{{ route('resources.create', ['resource' => 'customers']) }}" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">+ Registrar cliente</a>
+            @endif
+            @if ($canUse('payments.create'))
+                <a href="{{ route('collections.create') }}" class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">S/ Realizar pago</a>
+            @endif
+            @if ($canUse('assemblies.manage'))
+                <a href="{{ route('attendance.scanner') }}" class="inline-flex items-center justify-center rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-900">✓ Registrar asistencia</a>
+            @endif
+        </div>
     </div>
 
     <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_16rem]">
