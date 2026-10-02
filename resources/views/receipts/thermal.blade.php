@@ -33,7 +33,7 @@
 </head>
 <body>
     @php
-        $customerName = $customer ? trim($customer->first_name.' '.$customer->last_name) : 'Cliente no asociado';
+        $customerName = $customer?->display_name ?? 'Cliente no asociado';
     @endphp
     <main class="receipt">
         <header class="center">
@@ -50,7 +50,7 @@
         <hr class="divider">
         <div class="data"><span>Fecha</span><span>{{ $payment->paid_at?->format('d/m/Y H:i') }}</span></div>
         <div class="data"><span>Cliente</span><span>{{ $customerName }}</span></div>
-        @if ($customer?->national_id)<div class="data"><span>DNI</span><span>{{ $customer->national_id }}</span></div>@endif
+        @if ($customer?->national_id)<div class="data"><span>{{ $customer->document_label }}</span><span>{{ $customer->national_id }}</span></div>@endif
         <div class="data"><span>Medio de pago</span><span>{{ App\Support\CatalogLabel::value($payment->paymentMethod?->name ?? '—') }}</span></div>
         @if ($payment->operation_number)<div class="data"><span>Operación</span><span>{{ $payment->operation_number }}</span></div>@endif
 

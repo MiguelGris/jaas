@@ -26,9 +26,11 @@ final class CollectionController extends Controller
             : null;
 
         $customers = Customer::query()
+            ->orderBy('customer_type')
+            ->orderBy('business_name')
             ->orderBy('last_name')
             ->orderBy('first_name')
-            ->get(['id', 'customer_code', 'national_id', 'first_name', 'last_name']);
+            ->get(['id', 'customer_code', 'customer_type', 'national_id', 'first_name', 'last_name', 'business_name']);
 
         $charges = $customer === null
             ? ['invoices' => collect(), 'fines' => collect(), 'total' => 0]

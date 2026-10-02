@@ -46,8 +46,22 @@
                     $isSearchableSelect = $field['type'] === 'select'
                         && ! isset($field['choices'])
                         && ($field['searchable'] ?? count($options[$name] ?? []) > 20);
+                    $customerFieldGroup = $resource === 'customers'
+                        ? match ($name) {
+                            'first_name', 'last_name', 'birth_date' => 'person',
+                            'business_name' => 'business',
+                            default => null,
+                        }
+                        : null;
+                    $customerRequiredGroup = $resource === 'customers'
+                        ? match ($name) {
+                            'first_name', 'last_name' => 'person',
+                            'national_id', 'business_name' => 'business',
+                            default => null,
+                        }
+                        : null;
                 @endphp
-                <div @class(['md:col-span-2' => $wide])>
+                <div @class(['md:col-span-2' => $wide]) @if ($customerFieldGroup) data-customer-field="{{ $customerFieldGroup }}" @endif>
                     @if ($field['type'] === 'checkbox')
                         <input type="hidden" name="{{ $name }}" value="0">
                         <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
@@ -55,7 +69,7 @@
                             {{ $field['label'] }}
                         </label>
                     @else
-                        <label for="{{ $isSearchableSelect ? $name.'-search' : $name }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $field['label'] }} @if ($isRequired)<span class="text-rose-600">*</span>@endif</label>
+                        <label for="{{ $isSearchableSelect ? $name.'-search' : $name }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $field['label'] }} @if ($isRequired)<span class="text-rose-600">*</span>@elseif ($customerRequiredGroup)<span class="text-rose-600" data-customer-required="{{ $customerRequiredGroup }}">*</span>@endif</label>
                         @if ($editing && $field['type'] === 'password')<p class="mb-2 text-xs text-slate-500">Déjala en blanco para conservar la contraseña actual.</p>@endif
                         @if ($field['type'] === 'textarea')
                             <textarea id="{{ $name }}" name="{{ $name }}" rows="4" @required($isRequired) class="block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">{{ $value }}</textarea>
@@ -92,3 +106,51 @@
         </div>
     </form>
 @endsection
+
+@if ($resource === 'customers')
+    @push('scripts')
+        <script>
+            (() => {
+                const type = document.getElementById('customer_type');
+                const documentInput = document.getElementById('national_id');
+                const status = document.getElementById('customer_status_id');
+                if (!type || !documentInput) return;
+
+                const updateCustomerFields = () => {
+                    const isBusiness = type.value === 'BUSINESS';
+
+                    document.querySelectorAll('[data-customer-field]').forEach((wrapper) => {
+                        const visible = wrapper.dataset.customerField === (isBusiness ? 'business' : 'person');
+                        wrapper.classList.toggle('hidden', !visible);
+                        wrapper.querySelectorAll('input, select, textarea').forEach((input) => {
+                            input.disabled = !visible;
+                            input.required = visible && ['first_name', 'last_name', 'business_name'].includes(input.name);
+                        });
+                    });
+
+                    document.querySelectorAll('[data-customer-required]').forEach((marker) => {
+                        marker.classList.toggle('hidden', marker.dataset.customerRequired !== (isBusiness ? 'business' : 'person'));
+                    });
+
+                    documentInput.required = isBusiness;
+                    documentInput.maxLength = isBusiness ? 11 : 8;
+                    documentInput.pattern = isBusiness ? '[0-9]{11}' : '[0-9]{8}';
+                    documentInput.placeholder = isBusiness ? 'RUC de 11 dígitos' : 'DNI de 8 dígitos';
+
+                    if (status) {
+                        [...status.options].forEach((option) => {
+                            const normalized = option.textContent.trim().toLocaleLowerCase('es-PE');
+                            option.disabled = isBusiness && normalized === 'exonerado';
+                        });
+                        if (status.selectedOptions[0]?.disabled) {
+                            status.value = [...status.options].find((option) => !option.disabled)?.value ?? '';
+                        }
+                    }
+                };
+
+                type.addEventListener('change', updateCustomerFields);
+                updateCustomerFields();
+            })();
+        </script>
+    @endpush
+@endif

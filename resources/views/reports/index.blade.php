@@ -100,7 +100,7 @@
 
         <form id="reporte-historial-pagos" method="GET" action="{{ route('reports.download', ['report' => 'customer-payment-history', 'format' => 'xlsx']) }}" class="rounded-xl border border-sky-200 bg-white p-5 shadow-sm md:col-span-2 xl:col-span-3">
             <h3 class="font-semibold text-slate-800">Historial de pagos por cliente</h3>
-            <p class="mt-1 text-sm text-slate-500">Escribe un dato y selecciona el cliente exacto por su código o DNI.</p>
+            <p class="mt-1 text-sm text-slate-500">Escribe un dato y selecciona el cliente exacto por su código, DNI o RUC.</p>
             <div class="mt-2 grid gap-4 lg:grid-cols-2">
                 @include('reports._customer_selector', ['selectorId' => 'reports-payment-history-customer'])
                 @include('reports._payment_history_period', ['periodId' => 'reports-payment-history-period'])

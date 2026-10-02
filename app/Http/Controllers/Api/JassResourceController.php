@@ -81,6 +81,7 @@ final class JassResourceController extends Controller
         $resource = $this->resourceName($request);
         $definition = $this->definition($request);
         $attributes = $request->validate($this->rules($definition));
+        $this->validateCustomerIdentity($resource, $attributes);
         $this->assertCompoundUnique($definition, $attributes);
         $this->ensureCashMovementIsOpen($resource, $attributes);
 
@@ -126,6 +127,7 @@ final class JassResourceController extends Controller
         $definition = $this->definition($request);
         $model = $this->find($definition, $record);
         $attributes = $request->validate($this->updateRules($this->rules($definition, $record)));
+        $this->validateCustomerIdentity($resource, $attributes, $model instanceof Customer ? $model : null);
         $this->ensureCashMovementIsOpen($resource, $attributes, $model);
         $this->assertCompoundUnique($definition, $attributes, $model);
         $before = $audit->snapshot($model);
@@ -230,6 +232,42 @@ final class JassResourceController extends Controller
 
         if (array_key_exists($dateField, $attributes)) {
             $cash->ensureMovementDateIsOpen($attributes[$dateField], $dateField);
+        }
+    }
+
+    /** @param array<string, mixed> $attributes */
+    private function validateCustomerIdentity(?string $resource, array $attributes, ?Customer $customer = null): void
+    {
+        if ($resource !== 'customers') {
+            return;
+        }
+
+        $identity = array_merge(
+            $customer?->only(['customer_type', 'national_id', 'first_name', 'last_name', 'business_name', 'customer_status_id']) ?? [],
+            $attributes,
+        );
+        $type = $identity['customer_type'] ?? Customer::TYPE_PERSON;
+
+        validator($identity, [
+            'customer_type' => 'required|in:'.Customer::TYPE_PERSON.','.Customer::TYPE_BUSINESS,
+            'national_id' => $type === Customer::TYPE_BUSINESS ? 'required|digits:11' : 'nullable|digits:8',
+            'first_name' => $type === Customer::TYPE_PERSON ? 'required|string|max:100' : 'nullable|string|max:100',
+            'last_name' => $type === Customer::TYPE_PERSON ? 'required|string|max:100' : 'nullable|string|max:100',
+            'business_name' => $type === Customer::TYPE_BUSINESS ? 'required|string|max:200' : 'nullable|string|max:200',
+        ], [
+            'national_id.required' => 'El RUC es obligatorio para una empresa o negocio.',
+            'national_id.digits' => $type === Customer::TYPE_BUSINESS
+                ? 'El RUC debe contener exactamente 11 dígitos.'
+                : 'El DNI debe contener exactamente 8 dígitos.',
+            'business_name.required' => 'La razón social es obligatoria para una empresa o negocio.',
+            'first_name.required' => 'Los nombres son obligatorios para una persona natural.',
+            'last_name.required' => 'Los apellidos son obligatorios para una persona natural.',
+        ])->validate();
+
+        if ($type === Customer::TYPE_BUSINESS && Customer::statusIsExempt($identity['customer_status_id'] ?? null)) {
+            throw ValidationException::withMessages([
+                'customer_status_id' => 'Las empresas y negocios no pueden tener estado exonerado.',
+            ]);
         }
     }
 
@@ -546,9 +584,11 @@ final class JassResourceController extends Controller
             'customers' => [
                 'model' => Customer::class,
                 'rules' => static fn (?string $id): array => [
-                    'national_id' => ['nullable', 'string', 'max:20', self::unique('customers', 'national_id', $id)],
-                    'first_name' => 'required|string|max:100',
-                    'last_name' => 'required|string|max:100',
+                    'customer_type' => 'required|in:'.Customer::TYPE_PERSON.','.Customer::TYPE_BUSINESS,
+                    'national_id' => ['nullable', 'string', 'max:11', self::unique('customers', 'national_id', $id)],
+                    'first_name' => 'nullable|string|max:100',
+                    'last_name' => 'nullable|string|max:100',
+                    'business_name' => 'nullable|string|max:200',
                     'birth_date' => 'nullable|date',
                     'phone' => 'nullable|string|max:30',
                     'email' => 'nullable|email|max:150',

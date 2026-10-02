@@ -16,7 +16,7 @@
         <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             <h3 class="font-semibold text-slate-800">Datos del pago</h3>
             <dl class="mt-4 grid gap-4 sm:grid-cols-2">
-                <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</dt><dd class="mt-1 text-sm font-medium text-slate-800">{{ trim(($payment->customer?->first_name ?? '').' '.($payment->customer?->last_name ?? '')) ?: '—' }}</dd></div>
+                <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</dt><dd class="mt-1 text-sm font-medium text-slate-800">{{ $payment->customer?->display_name ?? '—' }}</dd></div>
                 <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha</dt><dd class="mt-1 text-sm font-medium text-slate-800">{{ $payment->paid_at?->format('d/m/Y H:i') }}</dd></div>
                 <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Monto</dt><dd class="mt-1 text-lg font-bold text-slate-900">S/ {{ number_format((float) $payment->amount, 2) }}</dd></div>
                 <div><dt class="text-xs font-semibold uppercase tracking-wide text-slate-500">Operación</dt><dd class="mt-1 text-sm font-medium text-slate-800">{{ $payment->operation_number ?: '—' }}</dd></div>

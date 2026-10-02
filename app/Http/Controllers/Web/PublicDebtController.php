@@ -18,10 +18,10 @@ final class PublicDebtController extends Controller
     public function lookup(Request $request, DebtService $debts): View
     {
         $data = $request->validate([
-            'national_id' => ['required', 'regex:/^\d{8}$/'],
+            'national_id' => ['required', 'regex:/^(?:\d{8}|\d{11})$/'],
         ], [
-            'national_id.required' => 'Ingresa tu DNI.',
-            'national_id.regex' => 'El DNI debe contener exactamente 8 dígitos.',
+            'national_id.required' => 'Ingresa tu DNI o RUC.',
+            'national_id.regex' => 'El documento debe contener 8 dígitos para DNI o 11 dígitos para RUC.',
         ]);
 
         $customer = Customer::query()
@@ -41,5 +41,4 @@ final class PublicDebtController extends Controller
             'notFound' => $customer === null,
         ]);
     }
-
 }

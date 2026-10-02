@@ -29,9 +29,11 @@ final class ReportController extends Controller
     {
         $assemblies = Assembly::query()->orderByDesc('held_on')->limit(100)->get();
         $reportCustomers = Customer::query()
+            ->orderBy('customer_type')
+            ->orderBy('business_name')
             ->orderBy('last_name')
             ->orderBy('first_name')
-            ->get(['id', 'customer_code', 'national_id', 'first_name', 'last_name']);
+            ->get(['id', 'customer_code', 'customer_type', 'national_id', 'first_name', 'last_name', 'business_name']);
 
         return view('reports.index', compact('assemblies', 'reportCustomers', 'reports'));
     }

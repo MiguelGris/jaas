@@ -20,7 +20,7 @@
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div class="min-w-0 flex-1">
                 <label for="debtor-search" class="mb-1.5 block text-sm font-semibold text-slate-700">Buscar cliente moroso</label>
-                <input id="debtor-search" type="search" name="q" value="{{ $search }}" placeholder="DNI, código, nombres o apellidos" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500">
+                <input id="debtor-search" type="search" name="q" value="{{ $search }}" placeholder="DNI, RUC, código, nombre o razón social" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500">
             </div>
             <div class="flex gap-2">
                 <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">Buscar</button>
@@ -48,8 +48,8 @@
             <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <header class="flex flex-col justify-between gap-3 border-b border-slate-100 bg-slate-50/70 px-4 py-4 sm:flex-row sm:items-center sm:px-5">
                     <div>
-                        <h3 class="font-bold text-slate-900">{{ trim($customer->first_name.' '.$customer->last_name) }}</h3>
-                        <p class="mt-0.5 text-sm text-slate-500">DNI {{ $customer->national_id }} · {{ $customer->customer_code }}@if ($customer->phone) · {{ $customer->phone }}@endif</p>
+                        <h3 class="font-bold text-slate-900">{{ $customer->display_name }}</h3>
+                        <p class="mt-0.5 text-sm text-slate-500">{{ $customer->document_label }} {{ $customer->national_id ?: 'sin registrar' }} · {{ $customer->customer_code }}@if ($customer->phone) · {{ $customer->phone }}@endif</p>
                     </div>
                     <p class="text-lg font-bold text-rose-700">S/ {{ number_format($debtor['total'], 2) }}</p>
                 </header>

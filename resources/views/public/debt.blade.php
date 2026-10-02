@@ -8,14 +8,14 @@
 
         @if ($notFound)
             <div class="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-7 text-center sm:p-10">
-                <p class="text-lg font-bold text-amber-900">No encontramos un servicio asociado a ese DNI.</p>
-                <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-amber-800">Verifica los 8 dígitos ingresados. Si acabas de registrarte, comunícate con la administración para actualizar tus datos.</p>
+                <p class="text-lg font-bold text-amber-900">No encontramos un servicio asociado a ese DNI o RUC.</p>
+                <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-amber-800">Verifica el documento ingresado. Si acabas de registrarte, comunícate con la administración para actualizar tus datos.</p>
             </div>
         @else
             <div class="mt-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
                 <p class="text-sm font-semibold uppercase tracking-widest text-sky-700">Resultado de la consulta</p>
-                <h1 class="mt-2 text-2xl font-bold tracking-tight text-slate-900">Hola, {{ $customer->first_name }}</h1>
-                <p class="mt-1 text-sm text-slate-500">DNI consultado: {{ $nationalId }}</p>
+                <h1 class="mt-2 text-2xl font-bold tracking-tight text-slate-900">{{ $customer->isBusiness() ? 'Empresa: '.$customer->display_name : 'Hola, '.$customer->display_name }}</h1>
+                <p class="mt-1 text-sm text-slate-500">{{ $customer->document_label }} consultado: {{ $nationalId }}</p>
 
                 @if ($invoices->isEmpty() && $fines->isEmpty())
                     <div class="mt-7 rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">

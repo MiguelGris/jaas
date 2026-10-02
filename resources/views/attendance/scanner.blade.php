@@ -79,7 +79,7 @@
                             @forelse ($attendees as $attendance)
                                 <tr>
                                     <td class="px-5 py-3.5 font-semibold text-slate-500">{{ $loop->iteration }}</td>
-                                    <td class="px-5 py-3.5 text-base font-semibold text-slate-800">{{ trim($attendance->customer?->first_name.' '.$attendance->customer?->last_name) }}</td>
+                                    <td class="px-5 py-3.5 text-base font-semibold text-slate-800">{{ $attendance->customer?->display_name ?? '—' }}</td>
                                     <td class="px-5 py-3.5 text-right font-mono text-sm font-bold text-slate-700">{{ $attendance->attended_at?->format('H:i:s') ?? '—' }}</td>
                                 </tr>
                             @empty

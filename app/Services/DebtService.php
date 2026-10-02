@@ -88,6 +88,8 @@ final class DebtService
                     ->whereDate('due_on', '<', $date))
                     ->orWhereHas('fines', fn ($fineQuery) => $fineQuery->where('status', 'PENDING'));
             })
+            ->orderBy('customer_type')
+            ->orderBy('business_name')
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->get()

@@ -33,6 +33,7 @@ final class DelinquencyController extends Controller
                         $customer->national_id,
                         $customer->first_name,
                         $customer->last_name,
+                        $customer->business_name,
                     ]));
 
                     return Str::contains($searchable, $needle);

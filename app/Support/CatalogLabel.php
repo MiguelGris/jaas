@@ -36,6 +36,8 @@ final class CatalogLabel
             'RESIDENTIAL' => 'Residencial',
             'COMMERCIAL' => 'Comercial',
             'COMMUNITY' => 'Comunitario',
+            'PERSON' => 'Persona natural',
+            'BUSINESS' => 'Empresa o negocio',
             'OTHER' => 'Otro',
             'QUARTERLY' => 'Trimestral',
             'SEMIANNUAL' => 'Semestral',

@@ -7,7 +7,7 @@
     <div class="mb-6">
         <p class="text-sm font-medium uppercase tracking-widest text-sky-700">Cobranza</p>
         <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">Registrar pago</h2>
-        <p class="mt-1 text-sm text-slate-500">Busca por DNI, nombres o apellidos. Selecciona las cuotas y multas que se cancelarán en un único recibo.</p>
+        <p class="mt-1 text-sm text-slate-500">Busca por DNI, RUC, nombre o razón social. Selecciona las cuotas y multas que se cancelarán en un único recibo.</p>
     </div>
 
     @if (session('receipt_id'))
@@ -25,13 +25,13 @@
                     'name' => 'customer',
                     'searchId' => 'collection-customer-search',
                     'options' => $customers->mapWithKeys(fn ($item) => [
-                        $item->id => $item->customer_code.' · DNI '.($item->national_id ?: 'sin registrar').' · '.trim($item->last_name.', '.$item->first_name),
+                        $item->id => $item->customer_code.' · '.$item->document_label.' '.($item->national_id ?: 'sin registrar').' · '.$item->display_name,
                     ])->all(),
                     'value' => $customer?->id,
                     'required' => true,
-                    'placeholder' => 'DNI, código, nombres o apellidos',
+                    'placeholder' => 'DNI, código, nombres o apellidos; RUC o razón social',
                 ])
-                <p class="mt-1 text-xs text-slate-500">Selecciona el resultado correcto verificando su código y DNI.</p>
+                <p class="mt-1 text-xs text-slate-500">Selecciona el resultado correcto verificando su código y documento.</p>
             </div>
             <button class="rounded-lg bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-900">Consultar deudas</button>
         </div>
@@ -41,7 +41,7 @@
         <form method="POST" action="{{ route('collections.store') }}" class="mt-6 space-y-5">
             @csrf
             <input type="hidden" name="customer_id" value="{{ $customer->id }}">
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm font-medium uppercase tracking-widest text-sky-700">Cliente seleccionado</p><h3 class="mt-1 text-xl font-bold text-slate-900">{{ $customer->last_name }}, {{ $customer->first_name }}</h3><p class="text-sm text-slate-500">DNI {{ $customer->national_id }} · {{ $customer->customer_code }}</p></div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm font-medium uppercase tracking-widest text-sky-700">Cliente seleccionado</p><h3 class="mt-1 text-xl font-bold text-slate-900">{{ $customer->display_name }}</h3><p class="text-sm text-slate-500">{{ $customer->document_label }} {{ $customer->national_id ?: 'sin registrar' }} · {{ $customer->customer_code }}</p></div>
 
             @if ($invoices->isEmpty() && $fines->isEmpty())
                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center text-emerald-900"><p class="font-bold">No tiene cargos pendientes.</p></div>

@@ -64,7 +64,7 @@ final class ReportService
             $customer = $payment->customer;
             $entries->push([
                 'date' => $payment->paid_at->toDateString(), 'type' => 'Cobro de cuota', 'code' => $payment->receipt_code,
-                'concept' => trim(($customer?->last_name ?? '').', '.($customer?->first_name ?? '')),
+                'concept' => $customer?->display_name ?? 'Cliente no asociado',
                 'income' => (float) $payment->amount, 'expense' => 0.0,
             ]);
         });
@@ -154,14 +154,14 @@ final class ReportService
             $customer = $debtor['customer'];
 
             return [
-                $customer->customer_code, $customer->national_id ?? '—', trim($customer->last_name.', '.$customer->first_name), $customer->phone ?? '—',
+                $customer->customer_code, $customer->national_id ?? '—', $customer->display_name, $customer->phone ?? '—',
                 $debtor['invoices']->count(), $debtor['fines']->count(), (float) $debtor['total'],
             ];
         });
 
         return $this->document(
             'Lista de morosos', 'Cuotas vencidas y multas pendientes al '.now()->format('d/m/Y'), 'morosos-'.now()->format('Y-m-d'),
-            ['Código', 'DNI', 'Titular', 'Teléfono', 'Cuotas vencidas', 'Multas', 'Deuda morosa'], $rows->all(),
+            ['Código', 'DNI / RUC', 'Titular o razón social', 'Teléfono', 'Cuotas vencidas', 'Multas', 'Deuda morosa'], $rows->all(),
             ['Morosos' => $rows->count(), 'Deuda morosa total' => round($rows->sum(6), 2)], [6],
         );
     }
@@ -285,7 +285,7 @@ final class ReportService
                 $payment->receipt_code ?? '—',
                 $payment->operation_number ?? '—',
                 $customer?->national_id ?? '—',
-                trim(($customer?->last_name ?? '').', '.($customer?->first_name ?? '')),
+                $customer?->display_name ?? '—',
                 CatalogLabel::value($payment->paymentMethod?->name ?? '—'),
                 $concepts,
                 $payment->status === Payment::STATUS_VOIDED ? 'Anulado' : 'Válido',
@@ -304,14 +304,14 @@ final class ReportService
             },
             default => 'Todo el tiempo',
         };
-        $customerName = trim($customer->last_name.', '.$customer->first_name);
+        $customerName = $customer->display_name;
         $customerIdentity = collect([$customer->customer_code, $customer->national_id, $customerName])
             ->filter()
             ->implode(' · ');
 
         return $this->document(
             'Historial de pagos por cliente', "{$customerIdentity} · {$period}", 'historial-pagos-'.($customer->customer_code ?: $customer->getKey()).'-'.now()->format('Ymd'),
-            ['Fecha', 'Recibo', 'Operación', 'DNI', 'Cliente', 'Medio', 'Conceptos', 'Estado', 'Importe', 'Registrado por'], $rows->all(),
+            ['Fecha', 'Recibo', 'Operación', $customer->document_label, 'Cliente', 'Medio', 'Conceptos', 'Estado', 'Importe', 'Registrado por'], $rows->all(),
             [
                 'Cliente' => $customerName,
                 'Pagos válidos' => $validPayments->count(),
@@ -331,7 +331,7 @@ final class ReportService
                 $identity = [
                     $customer->customer_code,
                     $customer->national_id ?? '—',
-                    trim($customer->last_name.', '.$customer->first_name),
+                    $customer->display_name,
                 ];
                 $invoiceRows = $debtor['invoices']->map(function ($invoice) use ($identity, $asOf): array {
                     $days = (int) $invoice->due_on->copy()->startOfDay()->diffInDays($asOf);
@@ -371,7 +371,7 @@ final class ReportService
 
         return $this->document(
             'Antigüedad de la deuda morosa', 'Cuotas vencidas y multas pendientes al '.$asOf->format('d/m/Y'), 'antiguedad-deuda-'.$asOf->format('Y-m-d'),
-            ['Código', 'DNI', 'Titular', 'Tipo', 'Documento', 'Fecha de mora', 'Días', 'Antigüedad', 'Saldo'], $rows->all(),
+            ['Código', 'DNI / RUC', 'Titular o razón social', 'Tipo', 'Documento', 'Fecha de mora', 'Días', 'Antigüedad', 'Saldo'], $rows->all(),
             [
                 'Deuda total' => round((float) $rows->sum(8), 2),
                 'Deuda de 0 a 30 días' => $bucketAmount('0 a 30 días'),
@@ -423,7 +423,7 @@ final class ReportService
                 $connection->supply_code,
                 $customer?->customer_code ?? '—',
                 $customer?->national_id ?? '—',
-                $customer ? trim($customer->last_name.', '.$customer->first_name) : '—',
+                $customer?->display_name ?? '—',
                 $connection->property?->property_code ?? '—',
                 $connection->property?->address ?? '—',
                 CatalogLabel::value($connection->connectionType?->name ?? '—'),
@@ -435,7 +435,7 @@ final class ReportService
 
         return $this->document(
             'Padrón de conexiones', 'Clientes, predios y servicios registrados al '.now()->format('d/m/Y'), 'padron-conexiones-'.now()->format('Y-m-d'),
-            ['Suministro', 'Cliente', 'DNI', 'Titular', 'Predio', 'Dirección', 'Servicio', 'Cobro', 'Estado', 'Medidor'], $rows->all(),
+            ['Suministro', 'Cliente', 'DNI / RUC', 'Titular o razón social', 'Predio', 'Dirección', 'Servicio', 'Cobro', 'Estado', 'Medidor'], $rows->all(),
             [
                 'Conexiones registradas' => $connections->count(),
                 'Conexiones con pago fijo' => $connections->where('payment_mode', Connection::PAYMENT_FIXED)->count(),
@@ -485,7 +485,7 @@ final class ReportService
             return [
                 $attendance->customer?->customer_code ?? '—',
                 $attendance->customer?->national_id ?? '—',
-                trim(($attendance->customer?->last_name ?? '').', '.($attendance->customer?->first_name ?? '')),
+                $attendance->customer?->display_name ?? '—',
                 $data['neighborhood'],
                 $attendance->customer?->phone ?? '—',
                 $attendance->attended ? 'Asistió' : 'Inasistente',
@@ -520,7 +520,7 @@ final class ReportService
 
         return $this->document(
             'Asistentes e inasistentes', "{$assembly->assembly_code} - {$assembly->held_on->format('d/m/Y')}", 'asistencia-'.$assembly->assembly_code,
-            ['Código', 'DNI', 'Titular', 'Barrio', 'Teléfono', 'Estado', 'Observaciones'], $rows->all(),
+            ['Código', 'DNI / RUC', 'Titular o razón social', 'Barrio', 'Teléfono', 'Estado', 'Observaciones'], $rows->all(),
             [], [],
             [
                 [
@@ -542,6 +542,7 @@ final class ReportService
         $age = $this->workExemptionAge();
         $customers = Customer::query()
             ->with('properties')
+            ->where('customer_type', Customer::TYPE_PERSON)
             ->whereNotNull('birth_date')
             ->whereHas('properties')
             ->whereHas('customerStatus', fn ($query) => $query->whereIn('name', ['ACTIVE', 'ACTIVO']))
@@ -550,7 +551,7 @@ final class ReportService
             ->filter(fn (Customer $customer): bool => $customer->birth_date->age >= $age);
         $rows = $customers->flatMap(function (Customer $customer): Collection {
             return $customer->properties->map(fn ($property): array => [
-                $customer->customer_code, $customer->national_id ?? '—', trim($customer->last_name.', '.$customer->first_name),
+                $customer->customer_code, $customer->national_id ?? '—', $customer->display_name,
                 $customer->birth_date->format('d/m/Y'), $customer->birth_date->age, $property->property_code ?? '—', $property->address,
             ]);
         });

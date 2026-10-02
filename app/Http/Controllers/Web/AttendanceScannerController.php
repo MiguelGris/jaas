@@ -105,7 +105,7 @@ final class AttendanceScannerController extends Controller
             $audit->updated($request->user(), $attendance, $before);
         }
 
-        $name = trim($customer->first_name.' '.$customer->last_name);
+        $name = $customer->display_name;
         $message = $alreadyPresent
             ? "{$name} ya estaba registrado como asistente."
             : "Asistencia registrada: {$name}.";

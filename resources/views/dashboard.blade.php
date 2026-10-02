@@ -130,7 +130,7 @@
                         @endphp
                         <tr class="hover:bg-slate-50/70">
                             <td class="px-5 py-3.5 font-medium text-slate-700 sm:px-6">{{ $invoice->connection?->supply_code ?? '—' }}</td>
-                            <td class="px-5 py-3.5 text-slate-600">{{ trim(($customer?->first_name ?? '').' '.($customer?->last_name ?? '')) ?: '—' }}</td>
+                            <td class="px-5 py-3.5 text-slate-600">{{ $customer?->display_name ?? '—' }}</td>
                             <td class="px-5 py-3.5 text-slate-600">{{ $invoice->due_on?->format('d/m/Y') ?? '—' }}</td>
                             <td class="px-5 py-3.5 text-right font-semibold text-slate-800 sm:px-6">S/ {{ number_format((float) $invoice->total, 2) }}</td>
                         </tr>
@@ -180,7 +180,7 @@
 
                 <form id="reporte-historial-pagos" method="GET" action="{{ route('reports.download', ['report' => 'customer-payment-history', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
                     <h3 class="text-sm font-semibold text-slate-800">Historial de pagos por cliente</h3>
-                    <p class="mt-1 text-xs text-slate-500">Busca en el padrón y selecciona por código, DNI y nombre.</p>
+                    <p class="mt-1 text-xs text-slate-500">Busca en el padrón y selecciona por código, DNI, RUC, nombre o razón social.</p>
                     @include('reports._customer_selector', ['selectorId' => 'dashboard-payment-history-customer'])
                     @include('reports._payment_history_period', ['periodId' => 'dashboard-payment-history-period'])
                     <div class="mt-2 flex gap-2"><button type="submit" @disabled($reportCustomers->isEmpty()) class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'customer-payment-history', 'format' => 'pdf']) }}" formtarget="_blank" @disabled($reportCustomers->isEmpty()) class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50">Ver PDF</button></div>

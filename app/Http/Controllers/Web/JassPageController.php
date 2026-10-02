@@ -138,7 +138,7 @@ final class JassPageController extends Controller
                     'occurred_at' => $payment->paid_at,
                     'type' => 'Cobro',
                     'code' => $payment->receipt_code,
-                    'concept' => $customer ? trim($customer->first_name.' '.$customer->last_name) : 'Pago de cuota',
+                    'concept' => $customer?->display_name ?? 'Pago de cuota',
                     'amount' => (float) $payment->amount,
                     'direction' => 'income',
                 ];
@@ -171,9 +171,11 @@ final class JassPageController extends Controller
 
         $assemblies = Assembly::query()->orderByDesc('held_on')->limit(30)->get();
         $reportCustomers = Customer::query()
+            ->orderBy('customer_type')
+            ->orderBy('business_name')
             ->orderBy('last_name')
             ->orderBy('first_name')
-            ->get(['id', 'customer_code', 'national_id', 'first_name', 'last_name']);
+            ->get(['id', 'customer_code', 'customer_type', 'national_id', 'first_name', 'last_name', 'business_name']);
 
         return view('dashboard', compact('metrics', 'financialMetrics', 'movements', 'recentInvoices', 'assemblies', 'reportCustomers', 'reports'));
     }
@@ -229,7 +231,9 @@ final class JassPageController extends Controller
                     foreach ($terms as $term) {
                         $customerQuery->where(function ($nameQuery) use ($term): void {
                             $nameQuery->where('first_name', 'like', "%{$term}%")
-                                ->orWhere('last_name', 'like', "%{$term}%");
+                                ->orWhere('last_name', 'like', "%{$term}%")
+                                ->orWhere('business_name', 'like', "%{$term}%")
+                                ->orWhere('national_id', 'like', "%{$term}%");
                         });
                     }
                 };
@@ -714,10 +718,14 @@ final class JassPageController extends Controller
     {
         if ($model === Customer::class) {
             return Customer::query()
+                ->orderBy('customer_type')
+                ->orderBy('business_name')
                 ->orderBy('last_name')
                 ->orderBy('first_name')
                 ->get()
-                ->mapWithKeys(static fn (Customer $customer): array => [$customer->id => trim("{$customer->customer_code} · {$customer->national_id} · {$customer->last_name}, {$customer->first_name}")])
+                ->mapWithKeys(static fn (Customer $customer): array => [
+                    $customer->id => "{$customer->customer_code} · {$customer->document_label} ".($customer->national_id ?: 'sin registrar')." · {$customer->display_name}",
+                ])
                 ->all();
         }
 
@@ -726,7 +734,7 @@ final class JassPageController extends Controller
                 ->with('customer')
                 ->orderBy('property_code')
                 ->get()
-                ->mapWithKeys(static fn (Property $property): array => [$property->id => trim("{$property->property_code} · {$property->address} · {$property->customer?->last_name}, {$property->customer?->first_name}")])
+                ->mapWithKeys(static fn (Property $property): array => [$property->id => trim("{$property->property_code} · {$property->address} · {$property->customer?->display_name}")])
                 ->all();
         }
 
@@ -735,7 +743,7 @@ final class JassPageController extends Controller
                 ->with('property.customer')
                 ->orderBy('supply_code')
                 ->get()
-                ->mapWithKeys(static fn (Connection $connection): array => [$connection->id => trim("{$connection->supply_code} · {$connection->property?->address} · {$connection->property?->customer?->last_name}, {$connection->property?->customer?->first_name}")])
+                ->mapWithKeys(static fn (Connection $connection): array => [$connection->id => trim("{$connection->supply_code} · {$connection->property?->address} · {$connection->property?->customer?->display_name}")])
                 ->all();
         }
 
@@ -746,7 +754,7 @@ final class JassPageController extends Controller
                 ->whereHas('connection', fn ($query) => $query->where('payment_mode', Connection::PAYMENT_METERED))
                 ->orderBy('meter_number')
                 ->get()
-                ->mapWithKeys(static fn (Meter $meter): array => [$meter->id => trim("{$meter->meter_number} · {$meter->connection?->supply_code} · {$meter->connection?->property?->customer?->last_name}, {$meter->connection?->property?->customer?->first_name}")])
+                ->mapWithKeys(static fn (Meter $meter): array => [$meter->id => trim("{$meter->meter_number} · {$meter->connection?->supply_code} · {$meter->connection?->property?->customer?->display_name}")])
                 ->all();
         }
 
@@ -847,6 +855,31 @@ final class JassPageController extends Controller
             $rules[$name] = $fieldRules;
         }
 
+        if ($definition['model'] === Customer::class) {
+            $type = (string) request()->input('customer_type', Customer::TYPE_PERSON);
+            $uniqueDocument = Rule::unique('customers', 'national_id');
+            if ($ignoreId !== null) {
+                $uniqueDocument->ignore($ignoreId);
+            }
+
+            $rules['customer_type'] = ['required', Rule::in([Customer::TYPE_PERSON, Customer::TYPE_BUSINESS])];
+            $rules['national_id'] = [
+                $type === Customer::TYPE_BUSINESS ? 'required' : 'nullable',
+                'string',
+                $type === Customer::TYPE_BUSINESS ? 'digits:11' : 'digits:8',
+                $uniqueDocument,
+            ];
+            $rules['first_name'] = [$type === Customer::TYPE_PERSON ? 'required' : 'nullable', 'string', 'max:100'];
+            $rules['last_name'] = [$type === Customer::TYPE_PERSON ? 'required' : 'nullable', 'string', 'max:100'];
+            $rules['business_name'] = [$type === Customer::TYPE_BUSINESS ? 'required' : 'nullable', 'string', 'max:200'];
+            $rules['birth_date'] = ['nullable', 'date'];
+            $rules['customer_status_id'][] = static function (string $attribute, mixed $value, \Closure $fail) use ($type): void {
+                if ($type === Customer::TYPE_BUSINESS && Customer::statusIsExempt($value)) {
+                    $fail('Las empresas y negocios no pueden tener estado exonerado.');
+                }
+            };
+        }
+
         return $rules;
     }
 
@@ -871,9 +904,12 @@ final class JassPageController extends Controller
         return [
             'customers' => self::resource('Clientes', 'Cliente', Customer::class, [
                 'customer_code' => self::code('Código de cliente'),
-                'national_id' => self::text('DNI', false, 20),
-                'first_name' => self::text('Nombres', true, 100),
-                'last_name' => self::text('Apellidos', true, 100),
+                'customer_type' => self::choice('Tipo de cliente', [Customer::TYPE_PERSON => 'Persona natural', Customer::TYPE_BUSINESS => 'Empresa o negocio'], true, Customer::TYPE_PERSON),
+                'national_id' => self::text('DNI / RUC', false, 11),
+                'first_name' => self::text('Nombres', false, 100),
+                'last_name' => self::text('Apellidos', false, 100),
+                'business_name' => self::text('Razón social', false, 200),
+                'display_name' => self::field('Cliente / razón social', 'text', false, ['readonly' => true]),
                 'birth_date' => self::date('Fecha de nacimiento', false),
                 'phone' => self::text('Teléfono', false, 30),
                 'email' => self::email('Correo electrónico', false, 150),
@@ -881,9 +917,9 @@ final class JassPageController extends Controller
                 'customer_status_id' => self::select('Estado', CustomerStatus::class, 'customerStatus'),
                 'registered_on' => self::date('Fecha de registro'),
                 'notes' => self::textarea('Observaciones', false),
-            ], ['customer_code', 'national_id', 'first_name', 'last_name', 'customer_status_id']),
+            ], ['customer_code', 'customer_type', 'national_id', 'display_name', 'customer_status_id']),
             'properties' => self::resource('Predios', 'Predio', Property::class, [
-                'customer_id' => self::select('Cliente', Customer::class, 'customer', true, 'last_name'),
+                'customer_id' => self::select('Cliente', Customer::class, 'customer', true, 'display_name'),
                 'neighborhood_id' => self::select('Sector o barrio', Neighborhood::class, 'neighborhood', true, 'name', false),
                 'address' => self::text('Dirección', true, 250),
                 'reference' => self::text('Referencia', false, 250),
@@ -957,7 +993,7 @@ final class JassPageController extends Controller
             ], ['invoice_code', 'connection_id', 'period_starts_on', 'due_on', 'total', 'status'], true),
             'payments' => self::resource('Recibos de pago', 'Recibo de pago', Payment::class, [
                 'receipt_code' => self::code('Número de recibo'),
-                'customer_id' => self::select('Cliente', Customer::class, 'customer', false, 'last_name'),
+                'customer_id' => self::select('Cliente', Customer::class, 'customer', false, 'display_name'),
                 'invoice_id' => self::select('Cuota histórica', Invoice::class, 'invoice', false, 'invoice_code'),
                 'paid_at' => self::datetime('Fecha y hora de pago'),
                 'amount' => self::number('Monto', true, 0.01),
@@ -983,13 +1019,13 @@ final class JassPageController extends Controller
             ], ['assembly_code', 'assembly_type_id', 'held_on', 'held_at', 'place', 'status']),
             'assembly-attendances' => self::resource('Asistencias', 'Asistencia', AssemblyAttendance::class, [
                 'assembly_id' => self::select('Asamblea', Assembly::class, 'assembly', true, 'held_on'),
-                'customer_id' => self::select('Cliente', Customer::class, 'customer', true, 'last_name'),
+                'customer_id' => self::select('Cliente', Customer::class, 'customer', true, 'display_name'),
                 'attended' => self::checkbox('Asistió'),
                 'notes' => self::textarea('Observaciones', false),
             ], ['assembly_id', 'customer_id', 'attended', 'notes']),
             'fines' => self::resource('Multas', 'Multa', Fine::class, [
                 'fine_code' => self::code('Código de multa'),
-                'customer_id' => self::select('Cliente', Customer::class, 'customer', true, 'last_name'),
+                'customer_id' => self::select('Cliente', Customer::class, 'customer', true, 'display_name'),
                 'assembly_id' => self::select('Asamblea', Assembly::class, 'assembly', true, 'held_on'),
                 'reason' => self::text('Motivo', false, 250),
                 'amount' => self::number('Monto', true, 0.01),
