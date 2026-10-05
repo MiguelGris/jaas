@@ -192,7 +192,7 @@ final class JassResourceController extends Controller
         $resource = $this->resourceName($request);
         abort_if($resource === 'cash-closings', 405, 'Los cierres de caja confirmados no se pueden eliminar.');
         $model = $this->find($this->definition($request), $record);
-        abort_if($model instanceof Setting && $model->isAutomatic(), 403, 'Este registro automático no se puede eliminar.');
+        abort_if(in_array($resource, ['settings', 'late-fee-settings'], true), 403, 'Las configuraciones no se pueden eliminar. Puedes editar sus valores.');
         abort_if($resource === 'rates', 405, 'Las tarifas forman parte del historial y no se pueden eliminar.');
         $this->ensureCashMovementIsOpen($resource, [], $model);
         $before = $audit->snapshot($model);

@@ -42,6 +42,7 @@ use App\Services\OperationalRecordService;
 use App\Services\PaymentConceptService;
 use App\Services\RateVersionService;
 use App\Services\ReportService;
+use App\Services\SettingsListService;
 use App\Support\CatalogLabel;
 use App\Support\ResourceAccess;
 use Illuminate\Database\Eloquent\Model;
@@ -187,6 +188,11 @@ final class JassPageController extends Controller
         $definition = $this->definition($resource);
         $columns = $this->columns($definition);
         $records = $this->query($definition);
+        if ($resource === 'settings') {
+            $configurationRows = app(SettingsListService::class)->forUser($request->user());
+
+            return view('resources.settings-index', compact('configurationRows'));
+        }
         $paymentFilters = ['q' => '', 'from' => '', 'to' => ''];
         $invoiceState = '';
         $customerSearch = '';
@@ -471,7 +477,7 @@ final class JassPageController extends Controller
         $definition = $this->writableDefinition($resource);
         abort_if($definition['immutable'] ?? false, 403, 'Este registro contable no se puede eliminar.');
         $model = $this->find($definition, $record);
-        abort_if($model instanceof Setting && $model->isAutomatic(), 403, 'Este registro automático no se puede eliminar.');
+        abort_if(in_array($resource, ['settings', 'late-fee-settings'], true), 403, 'Las configuraciones no se pueden eliminar. Puedes editar sus valores.');
         abort_if($resource === 'rates', 405, 'Las tarifas forman parte del historial y no se pueden eliminar.');
         $this->ensureCashMovementIsOpen($resource, [], $model);
         $audit = app(AuditService::class);

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\LateFeeSetting;
 use App\Models\Role;
 use App\Models\Setting;
 use App\Models\User;
@@ -40,5 +41,31 @@ class SettingsPresentationTest extends TestCase
         $this->putJson('/api/v1/settings/'.$automatic->id, ['value' => 'Modificado'])->assertForbidden();
         $this->deleteJson('/api/v1/settings/'.$automatic->id)->assertForbidden();
         $this->assertSame('Última emisión', $automatic->fresh()->value);
+    }
+
+    public function test_mora_can_be_edited_directly_and_settings_are_alphabetical(): void
+    {
+        $fee = LateFeeSetting::query()->create(['monthly_amount' => 2, 'grace_days' => 30, 'grace_months' => 1, 'starts_on' => '2026-01-01']);
+        $this->actingAs($this->administrator());
+        $this->get(route('resources.index', ['resource' => 'settings']))->assertOk()
+            ->assertSeeInOrder(['Ciclo de pago', 'Configuración de mora', 'Día de emisión de cuotas'])
+            ->assertSee(route('resources.edit', ['resource' => 'late-fee-settings', 'record' => $fee->id]), false)
+            ->assertSee('S/ 2.00 al mes');
+        $this->get(route('resources.edit', ['resource' => 'late-fee-settings', 'record' => $fee->id]))->assertOk();
+        $this->put(route('resources.update', ['resource' => 'late-fee-settings', 'record' => $fee->id]), ['monthly_amount' => 3, 'grace_months' => 2, 'starts_on' => '2026-01-01', 'ends_on' => null])->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertDatabaseHas('late_fee_settings', ['id' => $fee->id, 'monthly_amount' => 3, 'grace_months' => 2]);
+    }
+
+    public function test_all_configuration_rows_are_protected_from_deletion(): void
+    {
+        $setting = Setting::query()->where('key', 'billing_period_months')->firstOrFail();
+        $fee = LateFeeSetting::query()->create(['monthly_amount' => 2, 'grace_days' => 30, 'grace_months' => 1, 'starts_on' => '2026-01-01']);
+        $this->actingAs($this->administrator());
+        foreach (['settings' => $setting, 'late-fee-settings' => $fee] as $resource => $record) {
+            $this->get(route('resources.show', ['resource' => $resource, 'record' => $record->id]))->assertOk()->assertDontSee('>Eliminar</button>', false);
+            $this->delete(route('resources.destroy', ['resource' => $resource, 'record' => $record->id]))->assertForbidden();
+            $this->deleteJson('/api/v1/'.$resource.'/'.$record->id)->assertForbidden();
+            $this->assertDatabaseHas($record->getTable(), ['id' => $record->id]);
+        }
     }
 }
