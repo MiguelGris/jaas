@@ -7,8 +7,8 @@
     <style>
         @page { size: 58mm auto; margin: 0; }
         * { box-sizing: border-box; }
-        html, body { width: 58mm; margin: 0; background: #f1f5f9; color: #0f172a; font-family: Arial, Helvetica, sans-serif; }
-        .receipt { width: 58mm; min-height: 80mm; padding: 3mm; background: #fff; font-size: 9px; line-height: 1.3; }
+        html, body { width: 100%; margin: 0; background: #f1f5f9; color: #0f172a; font-family: Arial, Helvetica, sans-serif; }
+        .receipt { width: min(100%, 360px); margin: 16px auto; font-size: 14px; min-height: 80mm; padding: 3mm; background: #fff; line-height: 1.5; }
         .center { text-align: center; }
         .title { margin: 0; font-size: 14px; font-weight: 800; letter-spacing: .3px; }
         .muted { color: #475569; }
@@ -17,16 +17,18 @@
         .data span:first-child { flex: 0 0 17mm; }
         .data span:last-child { min-width: 0; overflow-wrap: anywhere; text-align: right; }
         table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 1.5mm; }
-        th { padding: 1.2mm 0; border-bottom: 1px solid #64748b; text-align: left; font-size: 8px; }
+        th { padding: 1.2mm 0; border-bottom: 1px solid #64748b; text-align: left; font-size: 12px; }
         th:last-child, td:last-child { width: 17mm; text-align: right; }
         td { padding: 1.2mm 0; overflow-wrap: anywhere; vertical-align: top; }
         td:first-child { padding-right: 2mm; }
-        .total { display: flex; justify-content: space-between; gap: 2mm; margin-top: 1.5mm; padding-top: 1.5mm; border-top: 1px solid #0f172a; font-size: 11px; font-weight: 800; }
+        .total { display: flex; justify-content: space-between; gap: 2mm; margin-top: 1.5mm; padding-top: 1.5mm; border-top: 1px solid #0f172a; font-size: 16px; font-weight: 800; }
         .voided { margin: 2.5mm 0; border: 2px solid #be123c; padding: 1.5mm; color: #be123c; font-size: 12px; font-weight: 900; text-align: center; }
         .print { display: block; width: 100%; margin: 4mm auto 0; border: 0; border-radius: 5px; padding: 2.5mm; background: #0369a1; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
         @media print {
             html, body { width: 58mm; background: #fff; }
-            .receipt { min-height: 0; }
+            .receipt { width: 58mm; min-height: 0; margin: 0; font-size: 9px; line-height: 1.3; }
+            th { font-size: 8px; }
+            .total { font-size: 11px; }
             .no-print { display: none !important; }
         }
     </style>
@@ -58,15 +60,9 @@
         <table>
             <thead><tr><th>Concepto</th><th>Importe</th></tr></thead>
             <tbody>
-                @forelse ($payment->allocations as $allocation)
-                    @if ($allocation->invoice)
-                        <tr><td>Cuota {{ $allocation->invoice->invoice_code }}<br><span class="muted">{{ $allocation->invoice->period_starts_on?->format('m/Y') }} - {{ $allocation->invoice->period_ends_on?->format('m/Y') }}</span></td><td>S/ {{ number_format((float) $allocation->amount, 2) }}</td></tr>
-                    @elseif ($allocation->fine)
-                        <tr><td>Multa {{ $allocation->fine->fine_code }}<br><span class="muted">{{ $allocation->fine->reason ?: 'Asamblea' }}</span></td><td>S/ {{ number_format((float) $allocation->amount, 2) }}</td></tr>
-                    @endif
-                @empty
-                    <tr><td>Pago registrado</td><td>S/ {{ number_format((float) $payment->amount, 2) }}</td></tr>
-                @endforelse
+                @foreach ($paymentConcepts as $concept)
+                    <tr><td><strong>{{ $concept['category'] }}</strong> {{ $concept['concept'] }}<br><span class="muted">{{ $concept['detail'] }}</span></td><td>S/ {{ number_format($concept['amount'], 2) }}</td></tr>
+                @endforeach
             </tbody>
         </table>
         <div class="total"><span>TOTAL PAGADO</span><span>S/ {{ number_format((float) $payment->amount, 2) }}</span></div>
@@ -76,8 +72,6 @@
         <button type="button" class="print no-print" onclick="window.print()">Imprimir recibo</button>
         <p class="center muted no-print">En el diálogo de impresión, seleccione papel de 58 mm, escala 100 % y márgenes: ninguno.</p>
     </main>
-    <script>
-        window.addEventListener('load', () => window.setTimeout(() => window.print(), 150));
-    </script>
+
 </body>
 </html>

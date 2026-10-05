@@ -41,6 +41,10 @@ php artisan billing:generate-monthly --month=2026-09
 
 El comando informa cuántas cuotas nuevas creó. Un resultado de cero puede significar que ya estaban generadas o que faltan conexiones elegibles, usos, tarifas o ciclo configurado.
 
+Para diagnosticarlo sin crear cuotas, abre **Cuotas → Revisar y generar cuotas**, selecciona el mes y revisa cada causa. También permite recuperar el mes con motivo y confirmación. Usa un titular específico para acotar la recuperación; dejarlo vacío revisa todas las conexiones. `billing_last_manual_run` muestra la última emisión manual que creó cuotas.
+
+Las claves vigentes son `billing_period_months` (3 o 6) y `billing_issue_day` (1–28). Las claves históricas con otros nombres no sustituyen estas configuraciones. Gracia e importe de mora tienen su propio catálogo y vigencias. La interfaz valida los valores y no permite renombrar la clave de un registro existente.
+
 ### Cierre de caja
 
 Cuando el mes haya concluido:

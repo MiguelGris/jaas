@@ -187,6 +187,14 @@ final class JassPageController extends Controller
         $records = $this->query($definition);
         $paymentFilters = ['q' => '', 'from' => '', 'to' => ''];
         $invoiceState = '';
+        $customerSearch = '';
+        if ($resource === 'customers') {
+            $data = $request->validate(['q' => ['nullable', 'string', 'max:150']]);
+            $customerSearch = trim((string) ($data['q'] ?? ''));
+            foreach (preg_split('/\s+/', $customerSearch, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $term) {
+                $records->where(fn ($query) => $query->where('first_name', 'like', "%{$term}%")->orWhere('last_name', 'like', "%{$term}%")->orWhere('business_name', 'like', "%{$term}%")->orWhere('national_id', 'like', "%{$term}%")->orWhere('customer_code', 'like', "%{$term}%"));
+            }
+        }
 
         if ($resource === 'invoices') {
             $filters = $request->validate([
@@ -233,7 +241,7 @@ final class JassPageController extends Controller
                             $nameQuery->where('first_name', 'like', "%{$term}%")
                                 ->orWhere('last_name', 'like', "%{$term}%")
                                 ->orWhere('business_name', 'like', "%{$term}%")
-                                ->orWhere('national_id', 'like', "%{$term}%");
+                                ->orWhere('national_id', 'like', "%{$term}%")->orWhere('customer_code', 'like', "%{$term}%");
                         });
                     }
                 };
@@ -258,7 +266,7 @@ final class JassPageController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        return view('resources.index', compact('resource', 'definition', 'columns', 'records', 'paymentFilters', 'invoiceState'));
+        return view('resources.index', compact('resource', 'definition', 'columns', 'records', 'paymentFilters', 'invoiceState', 'customerSearch'));
     }
 
     public function create(Request $request, string $resource): View
@@ -289,6 +297,16 @@ final class JassPageController extends Controller
             return view('cash-closings.create', compact('resource', 'definition', 'period', 'summary', 'previewErrors'));
         }
 
+        foreach (['properties' => 'customer_id', 'connections' => 'property_id', 'connection-usage-types' => 'connection_id'] as $step => $parent) {
+            if ($resource === $step && $request->filled($parent)) {
+                $table = match ($parent) {
+                    'customer_id' => 'customers', 'property_id' => 'properties', default => 'connections'
+                };
+                $data = $request->validate([$parent => ['integer', 'exists:'.$table.',id']]);
+                $definition['fields'][$parent]['default'] = $data[$parent];
+            }
+        }
+
         return view('resources.form', [
             'resource' => $resource,
             'definition' => $definition,
@@ -302,6 +320,7 @@ final class JassPageController extends Controller
         $definition = $this->writableDefinition($resource);
         $this->normalizeTimeFields($request, $definition);
         $attributes = $request->validate($this->rules($definition));
+        $this->validateBillingSettings($request, $resource);
         $audit = app(AuditService::class);
 
         $this->ensureCashMovementIsOpen($resource, $attributes);
@@ -338,7 +357,7 @@ final class JassPageController extends Controller
 
         return redirect()
             ->route('resources.index', ['resource' => $resource])
-            ->with('success', $definition['singular'].' creado correctamente.');
+            ->with('success', 'Se registró correctamente: '.$definition['singular'].'.');
     }
 
     public function show(string $resource, string $record): View
@@ -380,6 +399,7 @@ final class JassPageController extends Controller
         $this->normalizeTimeFields($request, $definition);
         $model = $this->find($definition, $record);
         $attributes = $request->validate($this->rules($definition, true, $model->getKey()));
+        $this->validateBillingSettings($request, $resource, $model);
         $this->ensureCashMovementIsOpen($resource, $attributes, $model);
         $audit = app(AuditService::class);
         $before = $audit->snapshot($model);
@@ -423,7 +443,7 @@ final class JassPageController extends Controller
 
         return redirect()
             ->route('resources.show', ['resource' => $resource, 'record' => $model->getKey()])
-            ->with('success', $definition['singular'].' actualizado correctamente.');
+            ->with('success', 'Se actualizó correctamente: '.$definition['singular'].'.');
     }
 
     public function destroy(Request $request, string $resource, string $record): RedirectResponse
@@ -463,7 +483,7 @@ final class JassPageController extends Controller
 
         return redirect()
             ->route('resources.index', ['resource' => $resource])
-            ->with('success', $definition['singular'].' eliminado correctamente.');
+            ->with('success', 'Se eliminó correctamente: '.$definition['singular'].'.');
     }
 
     /** @param array<string, mixed> $attributes */
@@ -785,6 +805,28 @@ final class JassPageController extends Controller
      * @param  array<string, mixed>  $definition
      * @return array<string, string|list<string>>
      */
+    private function validateBillingSettings(Request $request, string $resource, ?Model $model = null): void
+    {
+        if ($resource !== 'settings') {
+            return;
+        }
+        if ($model !== null && $request->input('key') !== $model->key) {
+            throw ValidationException::withMessages(['key' => 'La clave identifica la configuración y no se puede cambiar.']);
+        }
+        $key = $request->input('key');
+        if ($key === 'billing_last_manual_run') {
+            throw ValidationException::withMessages(['key' => 'Este registro se actualiza automáticamente al emitir cuotas.']);
+        }
+        $rules = match ($key) {
+            'billing_period_months' => ['required', 'integer', 'in:3,6'],
+            'billing_issue_day' => ['required', 'integer', 'min:1', 'max:28'],
+            default => null,
+        };
+        if ($rules !== null) {
+            $request->validate(['value' => $rules]);
+        }
+    }
+
     private function rules(array $definition, bool $updating = false, int|string|null $ignoreId = null): array
     {
         $rules = [];
@@ -924,7 +966,7 @@ final class JassPageController extends Controller
                 'address' => self::text('Dirección', true, 250),
                 'reference' => self::text('Referencia', false, 250),
                 'property_code' => self::code('Código de predio'),
-                'active' => self::checkbox('Activo'),
+                'active' => self::checkbox('Activo', true),
             ], ['property_code', 'customer_id', 'neighborhood_id', 'address', 'active']),
             'connections' => self::resource('Conexiones', 'Conexión', Connection::class, [
                 'property_id' => self::select('Predio', Property::class, 'property', true, 'address'),
@@ -1063,7 +1105,7 @@ final class JassPageController extends Controller
             'neighborhoods' => self::resource('Sectores', 'Sector', Neighborhood::class, [
                 'name' => self::text('Nombre', true, 100),
                 'description' => self::text('Descripción', false, 255),
-                'active' => self::checkbox('Activo'),
+                'active' => self::checkbox('Activo', true),
             ], ['name', 'description', 'active'], false, false, true),
             'connection-types' => self::catalog('Tipos de conexión', 'Tipo de conexión', ConnectionType::class, 200),
             'connection-statuses' => self::catalog('Estados de conexión', 'Estado de conexión', ConnectionStatus::class, 200),

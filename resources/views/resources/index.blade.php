@@ -17,14 +17,17 @@
         <div>
             <p class="text-sm font-medium uppercase tracking-widest text-sky-700">Gestión</p>
             <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">{{ $definition['label'] }}</h2>
-            <p class="mt-1 text-sm text-slate-500">{{ $records->total() }} {{ Str::lower($definition['label']) }} registrados.</p>
+            <p class="mt-1 text-sm text-slate-500">{{ $records->total() }} {{ $records->total() === 1 ? 'registro' : 'registros' }} en {{ Str::lower($definition['label']) }}.</p>
         </div>
         @unless ($definition['read_only'] ?? false)
-            <a href="{{ route('resources.create', ['resource' => $resource]) }}" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">+ Nuevo {{ Str::lower($definition['singular']) }}</a>
+            <a href="{{ route('resources.create', ['resource' => $resource]) }}" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">+ Registrar {{ Str::lower($definition['singular']) }}</a>
         @endunless
     </div>
 
     @if ($resource === 'invoices')
+        @if (auth()->user()->role?->name === 'ADMINISTRATOR' || auth()->user()->role?->permissions->contains('name', 'rates.manage'))
+            <div class="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4"><a href="{{ route('billing.index') }}" class="font-semibold text-sky-700">Revisar y generar cuotas →</a><p class="mt-2 text-sm">Selecciona el mes y revisa las causas de omisión antes de confirmar. Las cuotas existentes se conservan.</p></div>
+        @endif
         @php
             $invoiceTabs = [
                 '' => 'Todas',
@@ -57,7 +60,34 @@
         </form>
     @endif
 
+    @if ($resource === 'customers')
+        <form method="GET" class="mb-6 flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-4">
+            <label for="customer-search" class="w-full text-sm font-semibold">Buscar cliente por nombre, DNI, RUC o código</label>
+            <input id="customer-search" type="search" name="q" maxlength="150" value="{{ $customerSearch }}" class="min-w-0 flex-1 rounded-lg border-slate-300" placeholder="Escribe un nombre o documento">
+            <button class="rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white">Buscar</button>
+            @if ($customerSearch !== '')<a href="{{ route('resources.index', ['resource'=>'customers']) }}" class="px-3 py-3">Limpiar</a>@endif
+        </form>
+        <div class="mb-4 space-y-3 md:hidden" aria-label="Lista de clientes para teléfono">
+            @forelse ($records as $record)
+                <article class="rounded-xl border border-slate-200 bg-white p-4">
+                    <h3 class="break-words font-bold">{{ $record->display_name }}</h3>
+                    <p class="mt-1 text-sm text-slate-600">{{ $record->customer_code }} · {{ $record->document_label }} {{ $record->national_id ?: 'sin registrar' }}</p>
+                    <p class="mt-1 text-sm">{{ App\Support\CatalogLabel::value($record->customerStatus?->name ?? '') }}</p>
+                    <div class="mt-3 flex flex-wrap gap-3"><a class="rounded-lg bg-sky-50 px-4 py-3 font-semibold text-sky-700" href="{{ route('resources.show', ['resource'=>'customers','record'=>$record->id]) }}">Ver cliente</a><a class="rounded-lg px-4 py-3 font-semibold text-sky-700" href="{{ route('resources.edit', ['resource'=>'customers','record'=>$record->id]) }}">Editar</a></div>
+                </article>
+            @empty<p class="rounded-xl bg-white p-4">No se encontraron clientes.</p>@endforelse
+        </div>
+    @endif
+    @if ($resource === 'settings')
+        <aside class="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">
+            <h3 class="font-bold">Configuración que usa la facturación</h3>
+            <p class="mt-2">Ciclo de pago: billing_period_months (3 o 6 meses). Día de emisión: billing_issue_day (1 a 28). La gracia y el importe de mora se cambian en Configuración de mora.</p>
+            <p class="mt-2">Las claves antiguas con otros nombres se conservan como referencia y no controlan la emisión actual. billing_last_manual_run es un registro informativo de la última emisión manual.</p>
+            <a href="{{ route('resources.index',['resource'=>'late-fee-settings']) }}" class="mt-3 inline-block font-semibold text-sky-700">Consultar configuración de mora →</a>
+        </aside>
+    @endif
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        @if ($resource === 'customers')<div class="hidden md:block">@endif
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-100 text-left text-sm">
                 <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -85,7 +115,7 @@
                                     if ($field['type'] === 'checkbox') {
                                         $value = $value ? 'Sí' : 'No';
                                     } elseif ($field['type'] === 'number' && $value !== null) {
-                                        $value = number_format((float) $value, ($field['integer'] ?? false) ? 0 : 2);
+                                        $value = ($name === 'year' ? (string) (int) $value : number_format((float) $value, ($field['integer'] ?? false) ? 0 : 2));
                                     } elseif ($value instanceof DateTimeInterface) {
                                         $value = match ($field['type']) {
                                             'date' => $value->format('d/m/Y'),
@@ -122,6 +152,7 @@
                 </tbody>
             </table>
         </div>
+        @if ($resource === 'customers')</div>@endif
         @if ($records->hasPages())
             <div class="border-t border-slate-100 px-5 py-4">{{ $records->links() }}</div>
         @endif

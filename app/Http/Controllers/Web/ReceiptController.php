@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Services\AuditService;
 use App\Services\PaymentCancellationService;
+use App\Services\PaymentConceptService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -31,7 +32,9 @@ final class ReceiptController extends Controller
 
         $customer = $payment->customer ?? $payment->invoice?->connection?->property?->customer;
 
-        return view('receipts.thermal', compact('payment', 'customer'));
+        $paymentConcepts = app(PaymentConceptService::class)->forPayment($payment);
+
+        return view('receipts.thermal', compact('payment', 'customer', 'paymentConcepts'));
     }
 
     public function annulForm(Payment $payment): View|RedirectResponse

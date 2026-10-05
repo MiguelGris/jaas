@@ -1,6 +1,6 @@
 # Documentación del sistema JASS
 
-Documentación correspondiente al estado funcional del proyecto al 25 de septiembre de 2026.
+Documentación actualizada al 5 de octubre de 2026, incluidas las correcciones posteriores a las pruebas con diez clientes y dos ciclos de pago.
 
 ## Guías disponibles
 
@@ -15,7 +15,9 @@ Documentación correspondiente al estado funcional del proyecto al 25 de septiem
 
 ## Alcance actual
 
-El sistema cubre el flujo operativo desde el registro de un cliente hasta la emisión de cuotas, cobranza, impresión o anulación del recibo, cierre de caja, reportes y auditoría. También prepara la transición futura a cobro por medidor.
+Consulta la [relación de observaciones corregidas y verificaciones](CORRECCIONES_2026-10-05.md).
+
+El sistema cubre el flujo operativo desde el registro de un cliente hasta la emisión de cuotas, cobranza, impresión o anulación del recibo, cierre de caja, reportes y auditoría. Incluye cobro fijo y por consumo medido con lecturas del mes.
 
 La documentación describe el comportamiento real implementado. Las limitaciones pendientes se marcan expresamente para evitar que una función preparada se confunda con una función ya automatizada.
 

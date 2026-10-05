@@ -223,8 +223,7 @@ Las pruebas de características cubren, entre otros:
 
 ## 11. Extensiones previstas
 
-- Facturación automática de consumos medidos usando lectura y precio por metro cúbico.
 - Autenticación por token para integraciones externas.
-- Acción web para emitir y cobrar anticipadamente varios meses futuros.
+- Emisión en lote de varios meses desde una sola acción web; actualmente la revisión y emisión manual opera un mes por ejecución y la cobranza permite seleccionar cuotas disponibles.
 - Editor visual de permisos asociados a cada rol.
 - Política formal de retención y exportación de la bitácora.

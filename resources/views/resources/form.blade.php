@@ -4,8 +4,8 @@
     $editing = $record !== null;
     $versioningRate = $editing && $resource === 'rates';
 @endphp
-@section('title', ($versioningRate ? 'Nueva versión de ' : ($editing ? 'Editar ' : 'Nuevo ')).Str::lower($definition['singular']))
-@section('heading', $versioningRate ? 'Nueva versión de tarifa' : ($editing ? 'Editar '.$definition['singular'] : 'Nuevo '.$definition['singular']))
+@section('title', ($versioningRate ? 'Nueva versión de ' : ($editing ? 'Editar ' : 'Registrar ')).Str::lower($definition['singular']))
+@section('heading', $versioningRate ? 'Nueva versión de tarifa' : ($editing ? 'Editar '.$definition['singular'] : 'Registrar '.$definition['singular']))
 
 @section('content')
     <div class="mb-6 flex items-center gap-3">
@@ -13,6 +13,18 @@
         <div><h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ $versioningRate ? 'Crear nueva versión de tarifa' : ($editing ? 'Editar '.$definition['singular'] : 'Registrar '.$definition['singular']) }}</h2><p class="mt-1 text-sm text-slate-500">Los campos marcados con <span class="text-rose-600">*</span> son obligatorios.</p></div>
     </div>
 
+    @if (in_array($resource, ['customers', 'properties', 'connections', 'connection-usage-types']))
+        <p class="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+            Alta del servicio: 1. Cliente → 2. Predio (casa o local) → 3. Conexión → 4. Revisar tarifa y cuotas.
+            @if ($resource === 'properties')Un predio inactivo no recibirá cuotas.@endif
+            @if ($resource === 'customers')EXONERADO libera de las multas correspondientes; el agua se sigue facturando.@endif
+            @if ($resource === 'connections')La fecha de instalación impide emitir cuotas de meses anteriores. Al corregirla, revisa también las fechas de la asignación de uso.@endif
+            @if ($resource === 'connection-usage-types')El tipo de uso determina la tarifa; las fechas indican cuándo se aplica.@endif
+        </p>
+    @endif
+    @if ($resource === 'settings')
+        <p class="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">Configuraciones vigentes: billing_period_months admite 3 o 6; billing_issue_day admite 1 a 28. Las claves antiguas se conservan como referencia y no controlan la facturación actual. La clave de un registro existente no se puede cambiar. billing_last_manual_run se actualiza automáticamente.</p>
+    @endif
     @if ($versioningRate)
         <div class="mb-5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
             Indica una nueva fecha en <strong>Vigente desde</strong>. La versión actual se cerrará el día anterior y conservará sus importes históricos.
@@ -21,6 +33,7 @@
 
     <form method="POST" action="{{ $editing ? route('resources.update', ['resource' => $resource, 'record' => $record->getKey()]) : route('resources.store', ['resource' => $resource]) }}" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
         @csrf
+        @if ($errors->any())<div role="alert" tabindex="-1" class="mb-5 rounded-lg bg-rose-50 p-4 text-rose-800">Revisa los campos indicados; tus datos se conservaron.</div>@endif
         @if ($editing) @method('PUT') @endif
 
         <div class="grid gap-x-6 gap-y-5 md:grid-cols-2">

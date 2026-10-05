@@ -22,6 +22,8 @@
             @if ($canUse('payments.create'))
                 <a href="{{ route('collections.create') }}" class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">S/ Realizar pago</a>
             @endif
+            @if ($canUse('rates.manage'))<a href="{{ route('billing.index') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold">Revisar cuotas</a>@endif
+            @if ($canUse('customers.view'))<a href="{{ route('resources.index',['resource'=>'customers']) }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold">Buscar cliente</a>@endif
             @if ($canUse('assemblies.manage'))
                 <a href="{{ route('attendance.scanner') }}" class="inline-flex items-center justify-center rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-900">✓ Registrar asistencia</a>
             @endif

@@ -23,6 +23,16 @@
         </div>
     </div>
 
+    @if (in_array($resource, ['customers','properties','connections'], true))
+        <aside class="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4">
+            <h3 class="font-bold">Continuar el alta del servicio</h3>
+            <p class="mt-1 text-sm">1. Cliente → 2. Predio activo → 3. Conexión activa → 4. Uso y tarifa vigente.</p>
+            @if ($resource === 'customers')<a class="mt-3 inline-block rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white" href="{{ route('resources.create',['resource'=>'properties','customer_id'=>$record->id]) }}">Registrar predio de este cliente</a>
+            @elseif ($resource === 'properties')<a class="mt-3 inline-block rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white" href="{{ route('resources.create',['resource'=>'connections','property_id'=>$record->id]) }}">Registrar conexión en este predio</a>
+            @else<a class="mt-3 inline-block font-semibold text-sky-700" href="{{ route('resources.create',['resource'=>'connection-usage-types','connection_id'=>$record->id]) }}">Asignar uso a esta conexión →</a>
+            @endif
+        </aside>
+    @endif
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <dl class="divide-y divide-slate-100">
             @foreach ($fields as $name => $field)
@@ -34,7 +44,7 @@
                     if (isset($field['choices'])) $value = $field['choices'][$value] ?? $value;
                     elseif (is_string($value)) $value = App\Http\Controllers\Web\JassPageController::catalogValueLabel($value);
                     if ($field['type'] === 'checkbox') $value = $value ? 'Sí' : 'No';
-                    elseif ($field['type'] === 'number' && $value !== null) $value = number_format((float) $value, ($field['integer'] ?? false) ? 0 : 2);
+                    elseif ($field['type'] === 'number' && $value !== null) $value = ($name === 'year' ? (string) (int) $value : number_format((float) $value, ($field['integer'] ?? false) ? 0 : 2));
                     elseif ($value instanceof DateTimeInterface) $value = match ($field['type']) { 'date' => $value->format('d/m/Y'), 'datetime-local' => $value->format('d/m/Y H:i'), default => $value->format('d/m/Y') };
                     $isStructuredValue = is_array($value);
                     if ($isStructuredValue) $value = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);

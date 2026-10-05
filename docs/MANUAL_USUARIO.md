@@ -37,6 +37,10 @@ El DNI se usa para la consulta pública, para localizar al titular durante la co
 
 Cada predio pertenece a un cliente e incluye dirección, sector y estado. El selector permite buscar al titular para evitar recorrer una lista extensa. El código se genera como `PRD_0001`.
 
+Los predios nuevos empiezan activos. Desmarca **Activo** solamente cuando corresponda suspender la emisión. En el detalle del cliente puedes elegir **Registrar predio de este cliente**; en el del predio, **Registrar conexión en este predio**. El titular o predio queda seleccionado. En la conexión, **Asignar uso** conserva el suministro seleccionado. Revisa antes las asignaciones existentes para evitar duplicar una vigencia.
+
+En **Clientes**, busca por nombre, apellido, DNI, RUC o código. En teléfono, la lista se presenta en tarjetas con acciones grandes.
+
 ## 4. Servicios y conexiones
 
 Cada conexión pertenece a un predio y recibe un suministro automático como `SUM_0001`. Debe indicarse:
@@ -57,13 +61,17 @@ No se puede cambiar una conexión con medidor activo a pago fijo hasta desactiva
 La tarifa se registra por tipo de uso y año. Contiene:
 
 - Monto mensual fijo.
-- Precio por metro cúbico para uso futuro con medidor.
+- Precio por metro cúbico para conexiones con medidor y lecturas registradas.
 - Fecha de inicio y fin de vigencia.
 - Indicación de aprobación por asamblea.
 
 ### Generar cuotas
 
-Las cuotas de conexiones activas con pago fijo se generan automáticamente en el día configurado. También pueden recuperarse desde consola si el servidor estuvo apagado; consulta [Operación y mantenimiento](OPERACION_MANTENIMIENTO.md).
+Las cuotas de conexiones activas se generan automáticamente en el día configurado. Las de medidor requieren precio por m³ y lecturas del mes. Si el servidor estuvo apagado, un usuario con permiso de tarifas puede abrir **Revisar cuotas** en el panel o **Revisar y generar cuotas** en Cuotas.
+
+Selecciona un mes y, si corresponde, un titular. **Revisar emisión** no crea deuda: muestra cuotas listas, existentes y omitidas con su causa (tarifa, uso, estados, instalación o lecturas). Escribe el motivo y usa **Confirmar generación** solamente después de revisar. Se emite un mes por ejecución; repite para recuperar otros meses. Una cuota existente no se duplica ni se modifica.
+
+Un cliente EXONERADO sigue pagando agua; la exoneración corresponde a las multas aplicables. No se emiten cuotas de meses anteriores al mes de instalación. Al corregir la fecha, revisa la asignación de uso; las cuotas históricas existentes requieren revisión administrativa, no se eliminan automáticamente.
 
 Una cuota es una obligación mensual (`FAC26-000001`), no un comprobante de pago. Puede estar pendiente, pagada o anulada.
 
@@ -83,7 +91,9 @@ En **Caja > Pagos**:
 3. Marca las cuotas y multas que pagará.
 4. Elige el medio de pago.
 5. Agrega una observación si corresponde.
-6. Confirma el cobro.
+6. Pulsa **Registrar pago y emitir recibo**, revisa el titular, los conceptos, el medio y el total; elige **Confirmar pago y emitir recibo** o **Volver y corregir**.
+
+Puedes seleccionar todas las cuotas y multas, limpiar la selección o elegir un trimestre/semestre disponible. El botón de ciclo selecciona solo las cuotas de ese ciclo y reemplaza la selección anterior de cuotas; revisa las multas aparte. Las observaciones admiten 250 caracteres, con contador. Si el servidor rechaza el pago, se muestra el motivo y se conservan tus entradas; corrige el problema antes de reintentar.
 
 El sistema cobra el saldo completo de cada concepto seleccionado y crea:
 
@@ -93,6 +103,8 @@ El sistema cobra el saldo completo de cada concepto seleccionado y crea:
 - El registro del usuario que atendió la operación.
 
 Después del cobro puede abrirse la impresión térmica de 58 mm. En el diálogo de impresión debe usarse escala 100 % y sin márgenes.
+
+El recibo separa servicio, mora y multas. Primero se muestra en pantalla; el botón **Imprimir recibo** abre la impresión cuando lo necesitas.
 
 ### Anular un pago
 
@@ -170,7 +182,7 @@ El sistema calcula automáticamente:
 
 No permite lecturas menores que la anterior, fechas duplicadas para el mismo medidor, medidores inactivos ni lecturas en conexiones de pago fijo.
 
-La facturación automática por consumo medido aún no está habilitada. El precio por metro cúbico ya puede registrarse en tarifas para la implementación futura.
+La facturación mensual por consumo medido utiliza la suma de consumos registrados en el mes multiplicada por el precio por metro cúbico de la tarifa vigente. Si falta precio o lecturas, no se emite una cuota; revisa la causa desde **Revisar cuotas**.
 
 ## 10. Reportes
 

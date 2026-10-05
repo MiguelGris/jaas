@@ -21,9 +21,8 @@ final class CollectionController extends Controller
 
     public function create(Request $request, DebtService $debts): View
     {
-        $customer = $request->filled('customer')
-            ? Customer::query()->find($request->integer('customer'))
-            : null;
+        $customerId = $request->input('customer', old('customer_id'));
+        $customer = $customerId ? Customer::query()->find($customerId) : null;
 
         $customers = Customer::query()
             ->orderBy('customer_type')

@@ -36,15 +36,19 @@ Las series que incluyen año reinician su correlativo para cada año.
 
 La generación mensual actual procesa únicamente conexiones que cumplan todo lo siguiente:
 
-- Modalidad `FIXED` o pago fijo.
+- Modalidad `FIXED` (pago fijo) o `METERED` (consumo medido).
 - Estado de conexión activo (`ACTIVO` o `ACTIVE`).
 - Predio activo.
-- Cliente activo (`ACTIVO` o `ACTIVE`).
+- Cliente activo (`ACTIVO` o `ACTIVE`) o exonerado de multas (`EXONERADO` o `EXEMPT`); la exoneración no elimina el servicio de agua.
+- Fecha de instalación anterior o dentro del mes facturado; no se cobra un mes anterior al mes de instalación.
 - Asignación de tipo de uso vigente durante el mes.
 - Tarifa vigente para ese tipo de uso y año.
 - Existencia del ciclo de pago configurado, de 3 o 6 meses.
+- Para `METERED`: precio por m³ y lecturas del mes. Se suman los consumos registrados, incluidos cambios de medidor.
 
 Existe una restricción única por conexión y mes. Por eso ejecutar dos veces la generación para el mismo periodo no duplica la cuota.
+
+La pantalla de emisión informa el motivo de cada omisión. La emisión manual requiere permiso `rates.manage`, motivo y confirmación, y registra cada cuota creada con el operador en auditoría. Modificar la instalación no borra ni recalcula cuotas históricas automáticamente.
 
 ## 4. Emisión mensual
 
@@ -200,7 +204,7 @@ El dashboard presenta el saldo en una fila completa y debajo separa recaudación
 - Si se modifica o elimina una lectura, se recalcula toda la secuencia posterior.
 - El consumo es `lectura actual − lectura anterior`.
 
-La generación de cuotas por consumo todavía no está implementada. El generador mensual omite conexiones con medidor para evitar cobrar simultáneamente una tarifa fija incorrecta.
+La cuota de una conexión `METERED` es la suma de consumos registrados en el mes multiplicada por el precio por m³ de la tarifa vigente, redondeada a dos decimales. Si faltan lecturas o precio, la conexión se omite con diagnóstico en la revisión web; no se cobra la tarifa fija como sustituto.
 
 ## 13. Auditoría y permisos
 

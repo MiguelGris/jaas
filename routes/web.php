@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Web\AttendanceScannerController;
 use App\Http\Controllers\Web\AuthenticatedSessionController;
+use App\Http\Controllers\Web\BillingController;
 use App\Http\Controllers\Web\CollectionController;
 use App\Http\Controllers\Web\DelinquencyController;
 use App\Http\Controllers\Web\JassPageController;
@@ -44,6 +45,11 @@ Route::middleware(['auth', 'active', 'permission:reports.view'])->group(function
 Route::middleware(['auth', 'active', 'permission:payments.create'])->prefix('cobranza')->name('collections.')->group(function (): void {
     Route::get('/', [CollectionController::class, 'create'])->name('create');
     Route::post('/', [CollectionController::class, 'store'])->name('store');
+});
+
+Route::middleware(['auth', 'active', 'permission:rates.manage'])->group(function (): void {
+    Route::get('/facturacion/generar', [BillingController::class, 'index'])->name('billing.index');
+    Route::post('/facturacion/generar', [BillingController::class, 'store'])->name('billing.store');
 });
 
 Route::get('/recibos/{payment}/imprimir', [ReceiptController::class, 'thermal'])

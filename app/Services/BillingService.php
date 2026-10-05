@@ -11,7 +11,7 @@ use App\Models\Rate;
 use App\Models\Setting;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 final class BillingService
 {
@@ -24,61 +24,97 @@ final class BillingService
      */
     public function generateForMonth(CarbonInterface|string $month): int
     {
+        return $this->generateWithSummary($month)['created'];
+    }
+
+    /** Previsualización sin escrituras, también para detectar servicios incompletos. */
+    public function previewForMonth(CarbonInterface|string $month, ?int $customerId = null): array
+    {
         $periodStart = Carbon::parse($month)->startOfMonth();
         $periodEnd = $periodStart->copy()->endOfMonth();
         $billingPeriod = BillingPeriod::query()->where('months', $this->paymentFrequency())->first();
-
-        if ($billingPeriod === null) {
-            return 0;
+        $rows = [];
+        $connections = Connection::query()->with(['connectionStatus', 'property.customer.customerStatus']);
+        if ($customerId !== null) {
+            $connections->whereHas('property', fn ($query) => $query->where('customer_id', $customerId));
+        }
+        foreach ($connections->get() as $connection) {
+            $customer = $connection->property?->customer;
+            $existing = Invoice::query()->where('connection_id', $connection->id)->whereDate('period_starts_on', $periodStart)->first();
+            $reason = null;
+            $amount = null;
+            if ($existing !== null) {
+                $reason = 'La cuota ya existe; no se duplicará.';
+            } elseif ($billingPeriod === null) {
+                $reason = 'Falta el ciclo de pago configurado.';
+            } elseif (! in_array($connection->connectionStatus?->name, ['ACTIVE', 'ACTIVO'], true)) {
+                $reason = 'La conexión no está activa.';
+            } elseif (! $connection->property?->active) {
+                $reason = 'El predio está inactivo.';
+            } elseif (! in_array($customer?->customerStatus?->name, ['ACTIVE', 'ACTIVO', 'EXEMPT', 'EXONERADO'], true)) {
+                $reason = 'El titular no está activo.';
+            } elseif ($connection->installed_on?->gt($periodEnd)) {
+                $reason = 'El mes es anterior a la instalación del servicio.';
+            } elseif (! in_array($connection->payment_mode, [Connection::PAYMENT_FIXED, Connection::PAYMENT_METERED], true)) {
+                $reason = 'La modalidad de cobro no es válida.';
+            } else {
+                $usage = $this->usageTypeFor($connection, $periodStart, $periodEnd);
+                $rate = $usage === null ? null : $this->rateFor($usage, $periodStart, $periodEnd);
+                if ($usage === null) {
+                    $reason = 'Falta una asignación de uso vigente para el mes.';
+                } elseif ($rate === null) {
+                    $reason = 'Falta una tarifa vigente para el uso y año.';
+                } else {
+                    $amount = $this->serviceAmountFor($connection, $rate, $periodStart, $periodEnd);
+                    if ($amount === null) {
+                        $reason = $rate->metered_unit_price === null
+                            ? 'Falta el precio por m³ de la tarifa.'
+                            : 'Faltan lecturas del medidor para el mes.';
+                    }
+                }
+            }
+            $rows[] = [
+                'connection_id' => $connection->id, 'supply_code' => $connection->supply_code,
+                'customer' => $customer?->display_name ?? 'Sin titular',
+                'status' => $existing !== null ? 'existing' : ($reason === null ? 'ready' : 'omitted'),
+                'reason' => $reason, 'amount' => $amount,
+            ];
         }
 
-        $created = 0;
+        return ['month' => $periodStart->format('Y-m'), 'rows' => $rows,
+            'ready' => count(array_filter($rows, fn ($row) => $row['status'] === 'ready')),
+            'existing' => count(array_filter($rows, fn ($row) => $row['status'] === 'existing')),
+            'omitted' => count(array_filter($rows, fn ($row) => $row['status'] === 'omitted'))];
+    }
 
-        $this->eligibleConnections()->each(function (Connection $connection) use ($periodStart, $periodEnd, $billingPeriod, &$created): void {
-            $usageTypeId = $this->usageTypeFor($connection, $periodStart, $periodEnd);
-
-            if ($usageTypeId === null) {
-                return;
+    public function generateWithSummary(CarbonInterface|string $month, ?int $customerId = null): array
+    {
+        return DB::transaction(function () use ($month, $customerId): array {
+            $summary = $this->previewForMonth($month, $customerId);
+            $periodStart = Carbon::parse($month)->startOfMonth();
+            $periodEnd = $periodStart->copy()->endOfMonth();
+            $billingPeriod = BillingPeriod::query()->where('months', $this->paymentFrequency())->first();
+            $created = 0;
+            $invoiceIds = [];
+            foreach ($summary['rows'] as $row) {
+                if ($row['status'] !== 'ready') {
+                    continue;
+                }
+                $invoice = Invoice::query()->firstOrCreate(
+                    ['connection_id' => $row['connection_id'], 'period_starts_on' => $periodStart->toDateString()],
+                    ['billing_period_id' => $billingPeriod->id,
+                        'issued_on' => $this->issueDate($periodStart)->toDateString(),
+                        'due_on' => $this->graceDeadline($periodStart, (int) $billingPeriod->months)->toDateString(),
+                        'period_ends_on' => $periodEnd->toDateString(), 'rate' => $row['amount'],
+                        'late_fee' => 0, 'fines' => 0, 'total' => $row['amount'], 'status' => 'PENDING']);
+                if ($invoice->wasRecentlyCreated) {
+                    $created++;
+                    $invoiceIds[] = $invoice->id;
+                }
             }
 
-            $rate = $this->rateFor($usageTypeId, $periodStart, $periodEnd);
-
-            if ($rate === null) {
-                return;
-            }
-
-            $serviceAmount = $this->serviceAmountFor($connection, $rate, $periodStart, $periodEnd);
-
-            // En las conexiones con medidor se necesita por lo menos una
-            // lectura del mes y una tarifa por m³ antes de emitir la cuota.
-            if ($serviceAmount === null) {
-                return;
-            }
-
-            $invoice = Invoice::query()->firstOrCreate(
-                [
-                    'connection_id' => $connection->getKey(),
-                    'period_starts_on' => $periodStart->toDateString(),
-                ],
-                [
-                    'billing_period_id' => $billingPeriod->getKey(),
-                    'issued_on' => $this->issueDate($periodStart)->toDateString(),
-                    'due_on' => $this->graceDeadline($periodStart, (int) $billingPeriod->months)->toDateString(),
-                    'period_ends_on' => $periodEnd->toDateString(),
-                    'rate' => $serviceAmount,
-                    'late_fee' => 0,
-                    'fines' => 0,
-                    'total' => $serviceAmount,
-                    'status' => 'PENDING',
-                ],
-            );
-
-            if ($invoice->wasRecentlyCreated) {
-                $created++;
-            }
+            return $summary + ['created' => $created, 'invoice_ids' => $invoiceIds];
         });
-
-        return $created;
     }
 
     public function paymentFrequency(): int
@@ -140,16 +176,6 @@ final class BillingService
     private function issueDate(Carbon $periodStart): Carbon
     {
         return $periodStart->copy()->day($this->issueDay());
-    }
-
-    private function eligibleConnections(): Collection
-    {
-        return Connection::query()
-            ->whereIn('payment_mode', [Connection::PAYMENT_FIXED, Connection::PAYMENT_METERED])
-            ->whereHas('connectionStatus', fn ($query) => $query->whereIn('name', ['ACTIVE', 'ACTIVO']))
-            ->whereHas('property', fn ($query) => $query->where('active', true)
-                ->whereHas('customer.customerStatus', fn ($status) => $status->whereIn('name', ['ACTIVE', 'ACTIVO'])))
-            ->get();
     }
 
     private function serviceAmountFor(Connection $connection, Rate $rate, Carbon $periodStart, Carbon $periodEnd): ?float

@@ -26,9 +26,9 @@ final class AuditService
             ->all();
     }
 
-    public function created(?User $user, Model $model): void
+    public function created(?User $user, Model $model, array $context = []): void
     {
-        $this->record($user, $model, 'INSERT', null, $this->snapshot($model));
+        $this->record($user, $model, 'INSERT', null, $this->snapshot($model) + $context);
     }
 
     /** @param array<string, mixed> $before */

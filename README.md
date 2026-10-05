@@ -11,7 +11,7 @@ La interfaz está en español, es adaptable a computadoras y teléfonos, y está
 - Modalidad de pago fijo o con medidor por conexión; pago fijo es el valor predeterminado.
 - Registro y validación de medidores y lecturas de consumo.
 - Tarifas anuales para cuota fija y precio por metro cúbico.
-- Generación mensual automática e idempotente de cuotas de pago fijo.
+- Generación mensual automática e idempotente de cuotas fijas y por consumo medido; revisión y emisión manual desde la web con diagnóstico por conexión.
 - Ciclos obligatorios trimestrales o semestrales, con periodo de gracia configurable.
 - Cálculo de mora mensual después del vencimiento.
 - Cobranza por DNI, nombres o apellidos, seleccionando cuotas y multas.
@@ -64,6 +64,7 @@ La configuración completa de MySQL, Windows/XAMPP, producción y el programador
 - [Reportes e indicadores](docs/REPORTES.md)
 - [Arquitectura técnica y API interna](docs/ARQUITECTURA.md)
 - [Operación y mantenimiento](docs/OPERACION_MANTENIMIENTO.md)
+- [Correcciones de funcionamiento y facilidad de uso, 05/10/2026](docs/CORRECCIONES_2026-10-05.md)
 
 ## Generación automática de cuotas
 
@@ -97,7 +98,7 @@ C:\xampp\php\php.exe -d extension_dir=C:\xampp\php\ext -d extension=php_pdo_sqli
 
 ## Estado conocido
 
-La gestión de medidores y lecturas está implementada. La generación automática de cargos por consumo medido todavía no está conectada al ciclo mensual; actualmente el generador automático crea cuotas únicamente para conexiones de pago fijo.
+La gestión de medidores y lecturas y su facturación mensual están implementadas. Para cobrar consumo medido se requieren lecturas del mes y precio por m³ en la tarifa vigente. La revisión web explica cuando falta alguno de estos datos.
 
 ## Seguridad operativa
 
