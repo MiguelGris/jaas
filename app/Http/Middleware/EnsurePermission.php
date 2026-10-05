@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\ResourceAccess;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -16,7 +17,7 @@ final class EnsurePermission
 
         // El administrador conserva acceso total aunque cambie el catálogo de
         // permisos; los demás roles deben tener el permiso exacto del módulo.
-        if ($user->role->name === 'ADMINISTRATOR') {
+        if (ResourceAccess::isAdministrator($user)) {
             return $next($request);
         }
 
@@ -37,23 +38,14 @@ final class EnsurePermission
         // especializadas (reportes, cobranza, etc.) se deducen por su nombre.
         $resource = $request->route('resource') ?? $this->resourceFromRouteName($request);
 
-        return match ($resource) {
-            'customers' => match ($request->method()) {
-                'GET' => 'customers.view',
-                'POST' => 'customers.create',
-                default => 'customers.update',
+        $action = match ($request->method()) {
+            'POST' => 'store', 'PUT', 'PATCH' => 'update', 'DELETE' => 'destroy',
+            default => match (basename($request->path())) {
+                'create' => 'create', 'edit' => 'edit', default => 'index',
             },
-            'properties' => $request->isMethod('get') ? 'customers.view' : 'customers.update',
-            'connections' => $request->isMethod('post') ? 'connections.create' : 'services.manage',
-            'connection-usage-types', 'meters', 'meter-readings' => 'services.manage',
-            'payments' => $request->isMethod('get') ? 'reports.view' : 'payments.create',
-            'rates', 'billing-periods', 'late-fee-settings' => 'rates.manage',
-            'incomes', 'expenses', 'cash-closings' => 'cash.manage',
-            'assemblies', 'assembly-attendances', 'fines' => 'assemblies.manage',
-            'audit-logs' => 'audit.view',
-            'roles', 'permissions', 'settings', 'users', 'customer-statuses', 'neighborhoods', 'connection-types', 'connection-statuses', 'usage-types', 'payment-methods', 'assembly-types', 'income-types', 'expense-categories' => 'users.manage',
-            default => 'reports.view',
         };
+
+        return ResourceAccess::permission((string) $resource, $action);
     }
 
     private function resourceFromRouteName(Request $request): ?string

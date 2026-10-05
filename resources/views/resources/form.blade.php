@@ -8,6 +8,13 @@
 @section('heading', $versioningRate ? 'Nueva versión de tarifa' : ($editing ? 'Editar '.$definition['singular'] : 'Registrar '.$definition['singular']))
 
 @section('content')
+    @if ($resource === 'assembly-attendances')
+        <p class="mb-4 rounded-lg bg-sky-50 p-4 text-sm">El padrón se prepara automáticamente. Registrar asistencia actualiza al cliente seleccionado y no crea una fila duplicada.</p>
+    @elseif ($resource === 'assemblies')
+        <p class="mb-4 rounded-lg bg-sky-50 p-4 text-sm">Programada: registra asistencia. Realizada: cierra la lista y genera multas. Reabrir o cancelar anula las multas pendientes; si hay cobros, primero revisa y anula sus recibos.</p>
+    @elseif ($resource === 'connection-usage-types')
+        <p class="mb-4 rounded-lg bg-sky-50 p-4 text-sm">La conexión recibe uso residencial al registrarse. Para cambiar de uso, termina la vigencia anterior y comienza la siguiente al día siguiente. Las fechas no deben cruzarse.</p>
+    @endif
     <div class="mb-6 flex items-center gap-3">
         <a href="{{ route('resources.index', ['resource' => $resource]) }}" class="rounded-lg px-2 py-1 text-sm font-semibold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700">← Volver</a>
         <div><h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ $versioningRate ? 'Crear nueva versión de tarifa' : ($editing ? 'Editar '.$definition['singular'] : 'Registrar '.$definition['singular']) }}</h2><p class="mt-1 text-sm text-slate-500">Los campos marcados con <span class="text-rose-600">*</span> son obligatorios.</p></div>

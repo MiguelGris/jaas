@@ -46,6 +46,7 @@ return [
     'unique' => 'El valor de :attribute ya está registrado.',
 
     'attributes' => [
+        'notes' => 'observaciones',
         'active' => 'estado activo',
         'address' => 'dirección',
         'amount' => 'importe',

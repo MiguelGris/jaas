@@ -38,10 +38,12 @@ use App\Services\AuditService;
 use App\Services\CashService;
 use App\Services\DebtService;
 use App\Services\MeterReadingService;
+use App\Services\OperationalRecordService;
 use App\Services\PaymentConceptService;
 use App\Services\RateVersionService;
 use App\Services\ReportService;
 use App\Support\CatalogLabel;
+use App\Support\ResourceAccess;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
@@ -346,12 +348,16 @@ final class JassPageController extends Controller
 
         if ($resource === 'rates') {
             $record = app(RateVersionService::class)->create($attributes, $request->user());
+        } elseif ($resource === 'assembly-attendances') {
+            $record = app(OperationalRecordService::class)->attendance($attributes);
+        } elseif ($resource === 'connection-usage-types') {
+            $record = app(OperationalRecordService::class)->usage($attributes);
         } elseif ($resource === 'meter-readings') {
             $record = app(MeterReadingService::class)->create($attributes, $request->user()?->getKey());
         } else {
             $record = $this->modelClass($definition)::create($attributes);
         }
-        if ($resource !== 'rates') {
+        if (! in_array($resource, ['rates', 'assembly-attendances'], true)) {
             $audit->created($request->user(), $record);
         }
 
@@ -427,6 +433,12 @@ final class JassPageController extends Controller
             $model = app(RateVersionService::class)->revise($model, $attributes, $request->user());
         } elseif ($resource === 'meter-readings') {
             $model = app(MeterReadingService::class)->update($model, $attributes);
+        } elseif ($resource === 'assembly-attendances') {
+            $model = app(OperationalRecordService::class)->attendance($attributes, $model);
+        } elseif ($resource === 'connection-usage-types') {
+            $model = app(OperationalRecordService::class)->usage($attributes, $model);
+        } elseif ($resource === 'assemblies') {
+            $model = app(OperationalRecordService::class)->assembly($model, $attributes);
         } else {
             $model->fill($attributes)->save();
 
@@ -434,7 +446,7 @@ final class JassPageController extends Controller
                 app(MeterReadingService::class)->recalculateForMeter($model);
             }
         }
-        if ($resource !== 'rates') {
+        if (! in_array($resource, ['rates', 'assembly-attendances'], true)) {
             $audit->updated($request->user(), $model, $before);
         }
         if ($passwordChanged) {
@@ -626,17 +638,7 @@ final class JassPageController extends Controller
 
     private static function navigationPermission(string $resource): ?string
     {
-        return match ($resource) {
-            'customers', 'properties' => 'customers.view',
-            'connections', 'connection-usage-types', 'meters', 'meter-readings' => 'services.manage',
-            'invoices', 'payments' => 'reports.view',
-            'rates', 'billing-periods', 'late-fee-settings' => 'rates.manage',
-            'incomes', 'expenses', 'cash-closings' => 'cash.manage',
-            'assemblies', 'assembly-attendances', 'fines' => 'assemblies.manage',
-            'audit-logs' => 'audit.view',
-            'roles', 'permissions', 'settings', 'customer-statuses', 'neighborhoods', 'connection-types', 'connection-statuses', 'usage-types', 'payment-methods', 'assembly-types', 'income-types', 'expense-categories' => 'users.manage',
-            default => null,
-        };
+        return ResourceAccess::permission($resource);
     }
 
     /**
@@ -1134,7 +1136,7 @@ final class JassPageController extends Controller
             'audit-logs' => self::resource('Bitácora de auditoría', 'Evento de auditoría', AuditLog::class, [
                 'user_id' => self::select('Usuario', User::class, 'user', false, 'name'),
                 'table_name' => self::text('Tabla', true, 100),
-                'record_id' => self::number('ID del registro', true, 1),
+                'record_id' => array_merge(self::number('ID del registro', true, 1), ['integer' => true]),
                 'action' => self::choice('Acción', ['INSERT' => 'Creación', 'UPDATE' => 'Actualización', 'DELETE' => 'Eliminación']),
                 'old_values' => self::textarea('Valores anteriores', false),
                 'new_values' => self::textarea('Valores nuevos', false),

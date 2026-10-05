@@ -37,6 +37,7 @@ use App\Models\User;
 use App\Services\AuditService;
 use App\Services\CashService;
 use App\Services\MeterReadingService;
+use App\Services\OperationalRecordService;
 use App\Services\RateVersionService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
@@ -82,7 +83,9 @@ final class JassResourceController extends Controller
         $definition = $this->definition($request);
         $attributes = $request->validate($this->rules($definition));
         $this->validateCustomerIdentity($resource, $attributes);
-        $this->assertCompoundUnique($definition, $attributes);
+        if ($resource !== 'assembly-attendances') {
+            $this->assertCompoundUnique($definition, $attributes);
+        }
         $this->ensureCashMovementIsOpen($resource, $attributes);
 
         if (in_array($resource, ['incomes', 'expenses'], true)) {
@@ -103,11 +106,13 @@ final class JassResourceController extends Controller
         }
 
         $record = match ($resource) {
+            'assembly-attendances' => app(OperationalRecordService::class)->attendance($attributes),
+            'connection-usage-types' => app(OperationalRecordService::class)->usage($attributes),
             'rates' => app(RateVersionService::class)->create($attributes, $request->user()),
             'meter-readings' => app(MeterReadingService::class)->create($attributes, $request->user()?->getKey()),
             default => $this->modelClass($definition)::create($attributes),
         };
-        if ($resource !== 'rates') {
+        if (! in_array($resource, ['rates', 'assembly-attendances'], true)) {
             $audit->created($request->user(), $record);
         }
 
@@ -155,6 +160,12 @@ final class JassResourceController extends Controller
                 $attributes,
             );
             $model = app(MeterReadingService::class)->update($model, $readingAttributes);
+        } elseif ($resource === 'assembly-attendances') {
+            $model = app(OperationalRecordService::class)->attendance(array_merge($model->only(['assembly_id', 'customer_id', 'attended']), $attributes), $model);
+        } elseif ($resource === 'connection-usage-types') {
+            $model = app(OperationalRecordService::class)->usage($attributes, $model);
+        } elseif ($resource === 'assemblies') {
+            $model = app(OperationalRecordService::class)->assembly($model, $attributes);
         } else {
             $model->fill($attributes);
             $model->save();
@@ -163,7 +174,7 @@ final class JassResourceController extends Controller
                 app(MeterReadingService::class)->recalculateForMeter($model);
             }
         }
-        if ($resource !== 'rates') {
+        if (! in_array($resource, ['rates', 'assembly-attendances'], true)) {
             $audit->updated($request->user(), $model, $before);
         }
         if ($passwordChanged) {

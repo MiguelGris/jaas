@@ -35,6 +35,7 @@ final class DebtService
         $fines = Fine::query()
             ->where('customer_id', $customer->getKey())
             ->where('status', 'PENDING')
+            ->whereHas('assembly', fn ($query) => $query->where('status', 'HELD'))
             ->with('assembly')
             ->withSum('paymentAllocations', 'amount')
             ->orderBy('generated_on')

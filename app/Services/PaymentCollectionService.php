@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Assembly;
 use App\Models\Customer;
 use App\Models\Fine;
 use App\Models\Invoice;
@@ -38,6 +39,15 @@ final class PaymentCollectionService
         }
 
         return DB::transaction(function () use ($customer, $invoiceIds, $fineIds, $details, $user): Payment {
+            // Compartimos el bloqueo con la reapertura de asambleas: el estado
+            // no puede cambiar entre la validación y la confirmación del cobro.
+            $assemblyIds = Fine::query()->whereIn('id', $fineIds)->pluck('assembly_id')->unique()->sort()->values();
+            $assemblies = Assembly::query()->whereIn('id', $assemblyIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            foreach ($assemblyIds as $assemblyId) {
+                if ($assemblies->get($assemblyId)?->status !== 'HELD') {
+                    throw ValidationException::withMessages(['fines' => 'La asamblea está programada o cancelada. Sus multas no se pueden cobrar.']);
+                }
+            }
             $date = now();
             $allocations = [];
 

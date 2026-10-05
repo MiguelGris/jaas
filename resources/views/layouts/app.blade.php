@@ -32,6 +32,10 @@
                 </a>
 
                 @foreach ($navigation as $group)
+                    @php
+                        $group['items'] = array_filter($group['items'], fn ($item) => App\Support\ResourceAccess::isAdministrator(auth()->user()) || auth()->user()->role?->permissions->contains('name', $item['permission']));
+                    @endphp
+                    @continue(empty($group['items']))
                     <details class="group mb-1" open>
                         <summary class="flex cursor-pointer list-none items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-900 hover:text-slate-300">
                             {{ $group['title'] }}
@@ -41,7 +45,7 @@
                             @foreach ($group['items'] as $item)
                                 @php
                                     $canAccess = ! isset($item['permission'])
-                                        || auth()->user()->role?->name === 'ADMINISTRATOR'
+                                        || App\Support\ResourceAccess::isAdministrator(auth()->user())
                                         || auth()->user()->role?->permissions->contains('name', $item['permission']);
                                 @endphp
                                 @continue(! $canAccess)

@@ -7,6 +7,7 @@ use App\Models\Assembly;
 use App\Models\AssemblyAttendance;
 use App\Models\Customer;
 use App\Services\AuditService;
+use App\Services\OperationalRecordService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -94,16 +95,10 @@ final class AttendanceScannerController extends Controller
             'assembly_id' => $assembly->getKey(),
             'customer_id' => $customer->getKey(),
         ]);
-        $before = $attendance->exists ? $audit->snapshot($attendance) : null;
         $alreadyPresent = $attendance->exists && $attendance->attended;
-        $attendance->attended = true;
-        $attendance->save();
-
-        if ($before === null) {
-            $audit->created($request->user(), $attendance);
-        } else {
-            $audit->updated($request->user(), $attendance, $before);
-        }
+        app(OperationalRecordService::class)->attendance([
+            'assembly_id' => $assembly->getKey(), 'customer_id' => $customer->getKey(), 'attended' => true,
+        ], scheduledOnly: true);
 
         $name = $customer->display_name;
         $message = $alreadyPresent

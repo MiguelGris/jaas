@@ -5,7 +5,7 @@
 
 @section('content')
     @php
-        $canAnnulPayment = auth()->user()->role?->name === 'ADMINISTRATOR'
+        $canAnnulPayment = App\Support\ResourceAccess::isAdministrator(auth()->user())
             || auth()->user()->role?->permissions->contains('name', 'payments.create');
     @endphp
     <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -17,19 +17,22 @@
                     <a href="{{ route('receipts.annul-form', ['payment' => $record->getKey()]) }}" class="rounded-lg bg-rose-700 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-rose-800">Anular pago</a>
                 @endif
             @endif
-            @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false))
+            @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'edit'))
                 <a href="{{ route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="rounded-lg bg-sky-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">{{ $resource === 'rates' ? 'Nueva versión' : 'Editar' }}</a>
             @endunless
         </div>
     </div>
 
-    @if (in_array($resource, ['customers','properties','connections'], true))
+    @if (in_array($resource, ['customers','properties','connections'], true) && App\Support\ResourceAccess::allows(auth()->user(), match ($resource) { 'customers' => 'properties', 'properties' => 'connections', default => 'connection-usage-types' }, 'create'))
         <aside class="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4">
             <h3 class="font-bold">Continuar el alta del servicio</h3>
             <p class="mt-1 text-sm">1. Cliente → 2. Predio activo → 3. Conexión activa → 4. Uso y tarifa vigente.</p>
             @if ($resource === 'customers')<a class="mt-3 inline-block rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white" href="{{ route('resources.create',['resource'=>'properties','customer_id'=>$record->id]) }}">Registrar predio de este cliente</a>
             @elseif ($resource === 'properties')<a class="mt-3 inline-block rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white" href="{{ route('resources.create',['resource'=>'connections','property_id'=>$record->id]) }}">Registrar conexión en este predio</a>
-            @else<a class="mt-3 inline-block font-semibold text-sky-700" href="{{ route('resources.create',['resource'=>'connection-usage-types','connection_id'=>$record->id]) }}">Asignar uso a esta conexión →</a>
+            @else
+                <p class="mt-3 text-sm">Al registrar una conexión se asigna el uso residencial automáticamente. Revisa las fechas antes de cambiarlo.</p>
+                @foreach ($record->usageAssignments as $usage)<a class="mt-3 mr-4 inline-block font-semibold text-sky-700" href="{{ route('resources.edit',['resource'=>'connection-usage-types','record'=>$usage->id]) }}">Revisar uso existente →</a>@endforeach
+                <a class="mt-3 inline-block font-semibold text-sky-700" href="{{ route('resources.create',['resource'=>'connection-usage-types','connection_id'=>$record->id]) }}">Asignar uso a esta conexión →</a>
             @endif
         </aside>
     @endif
@@ -52,7 +55,7 @@
                 <div class="grid gap-1 px-5 py-4 sm:grid-cols-3 sm:gap-6 sm:px-6"><dt class="text-sm font-semibold text-slate-500">{{ $field['label'] }}</dt><dd class="text-sm text-slate-800 sm:col-span-2">@if ($isStructuredValue)<pre class="overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs leading-5 text-slate-100">{{ $value }}</pre>@else<span class="whitespace-pre-wrap">{{ ($value === null || $value === '') ? '—' : $value }}</span>@endif</dd></div>
             @endforeach
         </dl>
-        @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || $resource === 'rates')
+        @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || $resource === 'rates' || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'destroy'))
             <div class="flex justify-end border-t border-slate-100 bg-slate-50 px-5 py-4 sm:px-6">
                 <form method="POST" action="{{ route('resources.destroy', ['resource' => $resource, 'record' => $record->getKey()]) }}" onsubmit="return confirm('¿Eliminar este registro? Esta acción no se puede deshacer.');">@csrf @method('DELETE')<button type="submit" class="rounded-lg px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100">Eliminar</button></form>
             </div>

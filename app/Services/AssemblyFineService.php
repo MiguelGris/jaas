@@ -28,10 +28,6 @@ final class AssemblyFineService
     /** Genera las multas de todos los titulares activos que no asistieron. */
     public function applyAbsenceFines(Assembly $assembly): int
     {
-        if ((float) $assembly->absence_fine <= 0) {
-            return 0;
-        }
-
         $this->prepareAttendance($assembly);
         $created = 0;
 

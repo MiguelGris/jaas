@@ -5,7 +5,7 @@
 
 @section('content')
     @php
-        $canAnnulPayments = auth()->user()->role?->name === 'ADMINISTRATOR'
+        $canAnnulPayments = App\Support\ResourceAccess::isAdministrator(auth()->user())
             || auth()->user()->role?->permissions->contains('name', 'payments.create');
         $deleteConfirmation = match ($resource) {
             'incomes' => '¿Eliminar este ingreso? El saldo de caja se actualizará y la acción quedará en la bitácora.',
@@ -19,13 +19,13 @@
             <h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">{{ $definition['label'] }}</h2>
             <p class="mt-1 text-sm text-slate-500">{{ $records->total() }} {{ $records->total() === 1 ? 'registro' : 'registros' }} en {{ Str::lower($definition['label']) }}.</p>
         </div>
-        @unless ($definition['read_only'] ?? false)
+        @unless (($definition['read_only'] ?? false) || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'create'))
             <a href="{{ route('resources.create', ['resource' => $resource]) }}" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">+ Registrar {{ Str::lower($definition['singular']) }}</a>
         @endunless
     </div>
 
     @if ($resource === 'invoices')
-        @if (auth()->user()->role?->name === 'ADMINISTRATOR' || auth()->user()->role?->permissions->contains('name', 'rates.manage'))
+        @if (App\Support\ResourceAccess::isAdministrator(auth()->user()) || auth()->user()->role?->permissions->contains('name', 'rates.manage'))
             <div class="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4"><a href="{{ route('billing.index') }}" class="font-semibold text-sky-700">Revisar y generar cuotas →</a><p class="mt-2 text-sm">Selecciona el mes y revisa las causas de omisión antes de confirmar. Las cuotas existentes se conservan.</p></div>
         @endif
         @php
@@ -73,7 +73,7 @@
                     <h3 class="break-words font-bold">{{ $record->display_name }}</h3>
                     <p class="mt-1 text-sm text-slate-600">{{ $record->customer_code }} · {{ $record->document_label }} {{ $record->national_id ?: 'sin registrar' }}</p>
                     <p class="mt-1 text-sm">{{ App\Support\CatalogLabel::value($record->customerStatus?->name ?? '') }}</p>
-                    <div class="mt-3 flex flex-wrap gap-3"><a class="rounded-lg bg-sky-50 px-4 py-3 font-semibold text-sky-700" href="{{ route('resources.show', ['resource'=>'customers','record'=>$record->id]) }}">Ver cliente</a><a class="rounded-lg px-4 py-3 font-semibold text-sky-700" href="{{ route('resources.edit', ['resource'=>'customers','record'=>$record->id]) }}">Editar</a></div>
+                    <div class="mt-3 flex flex-wrap gap-3"><a class="rounded-lg bg-sky-50 px-4 py-3 font-semibold text-sky-700" href="{{ route('resources.show', ['resource'=>'customers','record'=>$record->id]) }}">Ver cliente</a>@if (App\Support\ResourceAccess::allows(auth()->user(), $resource, 'edit'))<a class="rounded-lg px-4 py-3 font-semibold text-sky-700" href="{{ route('resources.edit', ['resource'=>'customers','record'=>$record->id]) }}">Editar</a>@endif</div>
                 </article>
             @empty<p class="rounded-xl bg-white p-4">No se encontraron clientes.</p>@endforelse
         </div>
@@ -134,10 +134,10 @@
                                         <a href="{{ route('receipts.annul-form', ['payment' => $record->getKey()]) }}" class="ml-3 text-sm font-semibold text-rose-700 hover:text-rose-800">Anular</a>
                                     @endif
                                 @endif
-                                @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false))
+                                @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'edit'))
                                     <a href="{{ route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="ml-3 text-sm font-semibold text-sky-700 hover:text-sky-800">{{ $resource === 'rates' ? 'Nueva versión' : 'Editar' }}</a>
                                 @endunless
-                                @if ($definition['delete_on_index'] ?? false)
+                                @if (($definition['delete_on_index'] ?? false) && App\Support\ResourceAccess::allows(auth()->user(), $resource, 'destroy'))
                                     <form method="POST" action="{{ route('resources.destroy', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="inline" onsubmit="return confirm({{ Js::from($deleteConfirmation) }});">
                                         @csrf
                                         @method('DELETE')

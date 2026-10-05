@@ -6,7 +6,7 @@
 @section('content')
     @php
         $dashboardUser = auth()->user();
-        $isAdministrator = $dashboardUser->role?->name === 'ADMINISTRATOR';
+        $isAdministrator = App\Support\ResourceAccess::isAdministrator($dashboardUser);
         $canUse = static fn (string $permission): bool => $isAdministrator
             || $dashboardUser->role?->permissions->contains('name', $permission);
     @endphp
@@ -23,6 +23,7 @@
                 <a href="{{ route('collections.create') }}" class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">S/ Realizar pago</a>
             @endif
             @if ($canUse('rates.manage'))<a href="{{ route('billing.index') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold">Revisar cuotas</a>@endif
+            @if ($canUse('reports.view'))<a href="{{ route('resources.index',['resource'=>'payments']) }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold">Buscar o reimprimir recibo</a>@endif
             @if ($canUse('customers.view'))<a href="{{ route('resources.index',['resource'=>'customers']) }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold">Buscar cliente</a>@endif
             @if ($canUse('assemblies.manage'))
                 <a href="{{ route('attendance.scanner') }}" class="inline-flex items-center justify-center rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-900">✓ Registrar asistencia</a>
@@ -31,9 +32,10 @@
     </div>
 
     <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_16rem]">
-        <div class="space-y-8">
+        <div class="min-w-0 space-y-8">
             <div class="grid gap-4 md:grid-cols-3">
                 @foreach ($financialMetrics as $metric)
+                    @continue(! App\Support\ResourceAccess::allows($dashboardUser, $metric['resource'] ?? 'reports'))
                     @php
                         $colors = match ($metric['accent']) {
                             'rose' => 'border-rose-100 bg-rose-50 text-rose-700',
@@ -62,6 +64,7 @@
 
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 @foreach ($metrics as $metric)
+                    @continue(! App\Support\ResourceAccess::allows($dashboardUser, $metric['resource'] ?? 'reports'))
                     @php
                         $colors = match ($metric['accent']) {
                             'violet' => 'border-violet-100 bg-violet-50 text-violet-700',
@@ -90,7 +93,7 @@
                     </div>
                     <a href="{{ route('resources.index', ['resource' => 'payments']) }}" class="text-sm font-semibold text-sky-700 hover:text-sky-800">Ver cobros</a>
                 </div>
-                <div class="overflow-x-auto">
+                <div class="max-w-full overflow-x-auto">
                     <table class="min-w-full divide-y divide-slate-100 text-left text-sm">
                         <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                             <tr><th class="px-5 py-3 font-semibold sm:px-6">Fecha</th><th class="px-5 py-3 font-semibold">Tipo</th><th class="px-5 py-3 font-semibold">Detalle</th><th class="px-5 py-3 text-right font-semibold sm:px-6">Monto</th></tr>
@@ -120,7 +123,7 @@
             <a href="{{ route('resources.index', ['resource' => 'invoices']) }}" class="text-sm font-semibold text-sky-700 hover:text-sky-800">Ver todas</a>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="max-w-full overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-100 text-left text-sm">
                 <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                     <tr><th class="px-5 py-3 font-semibold sm:px-6">Suministro</th><th class="px-5 py-3 font-semibold">Cliente</th><th class="px-5 py-3 font-semibold">Vencimiento</th><th class="px-5 py-3 text-right font-semibold sm:px-6">Total</th></tr>

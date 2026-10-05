@@ -59,7 +59,7 @@ class DelinquencyReportTest extends TestCase
             'assembly_type_id' => $assemblyType->id,
             'held_on' => '2026-03-15',
             'absence_fine' => 0,
-            'status' => 'SCHEDULED',
+            'status' => 'HELD',
         ]);
         Fine::query()->create([
             'customer_id' => $customer->id,
