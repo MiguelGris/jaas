@@ -9,7 +9,7 @@
             || auth()->user()->role?->permissions->contains('name', 'payments.create');
     @endphp
     <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div class="flex items-center gap-3"><a href="{{ route('resources.index', ['resource' => $resource]) }}" class="rounded-lg px-2 py-1 text-sm font-semibold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700">← Volver</a><div><p class="text-sm font-medium uppercase tracking-widest text-sky-700">Detalle</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">{{ $definition['singular'] }} #{{ $record->getKey() }}</h2></div></div>
+        <div class="flex items-center gap-3"><a href="{{ route('resources.index', ['resource' => $resource === 'late-fee-settings' ? 'settings' : $resource]) }}" class="rounded-lg px-2 py-1 text-sm font-semibold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700">← Volver</a><div><p class="text-sm font-medium uppercase tracking-widest text-sky-700">Detalle</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-slate-900">{{ $definition['singular'] }} #{{ $record->getKey() }}</h2></div></div>
         <div class="flex flex-wrap gap-2">
             @if ($resource === 'payments')
                 <a href="{{ route('receipts.thermal', ['payment' => $record->getKey()]) }}" target="_blank" rel="noopener" class="rounded-lg bg-slate-800 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-slate-900">Imprimir recibo</a>

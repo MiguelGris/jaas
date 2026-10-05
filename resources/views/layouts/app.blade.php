@@ -49,14 +49,11 @@
                                 @continue(! $canAccess)
                                 @php
                                     $resource = $item['resource'] ?? null;
-                                    if ($resource === 'settings' && ! App\Support\ResourceAccess::allows(auth()->user(), 'settings')) {
-                                        $resource = 'late-fee-settings';
-                                    }
                                     $href = $resource
                                         ? route('resources.index', ['resource' => $resource])
                                         : route($item['route_name']).(isset($item['fragment']) ? '#'.$item['fragment'] : '');
                                     $isActive = $resource
-                                        ? request()->route('resource') === $resource
+                                        ? request()->route('resource') === $resource || ($resource === 'settings' && request()->routeIs('settings.mora.*'))
                                         : isset($item['active']) && request()->routeIs($item['active']);
                                 @endphp
                                 <a href="{{ $href }}" @class([

@@ -10,6 +10,8 @@ use App\Http\Controllers\Web\PasswordController;
 use App\Http\Controllers\Web\PublicDebtController;
 use App\Http\Controllers\Web\ReceiptController;
 use App\Http\Controllers\Web\ReportController;
+use App\Services\SettingsListService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [PublicDebtController::class, 'home'])->name('home');
@@ -64,6 +66,19 @@ Route::middleware(['auth', 'active', 'permission:payments.create'])->group(funct
 Route::middleware(['auth', 'active', 'permission:assemblies.manage'])->prefix('asistencias')->name('attendance.')->group(function (): void {
     Route::get('/lector', [AttendanceScannerController::class, 'create'])->name('scanner');
     Route::post('/lector', [AttendanceScannerController::class, 'store'])->name('scan');
+});
+
+Route::middleware(['auth', 'active', 'permission:rates.manage'])->group(function (): void {
+    Route::get('/gestion/settings/mora', function (JassPageController $controller, SettingsListService $settings) {
+        $fee = $settings->currentMora();
+
+        return $fee ? $controller->show('late-fee-settings', (string) $fee->id) : redirect()->route('settings.mora.edit');
+    })->name('settings.mora.show');
+    Route::get('/gestion/settings/mora/editar', function (Request $request, JassPageController $controller, SettingsListService $settings) {
+        $fee = $settings->currentMora();
+
+        return $fee ? $controller->edit('late-fee-settings', (string) $fee->id) : $controller->create($request, 'late-fee-settings');
+    })->name('settings.mora.edit');
 });
 
 Route::middleware(['auth', 'active', 'permission'])->prefix('gestion')->name('resources.')->group(function (): void {

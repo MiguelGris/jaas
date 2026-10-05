@@ -183,9 +183,12 @@ final class JassPageController extends Controller
         return view('dashboard', compact('metrics', 'financialMetrics', 'movements', 'recentInvoices', 'assemblies', 'reportCustomers', 'reports'));
     }
 
-    public function index(Request $request, string $resource): View
+    public function index(Request $request, string $resource): View|RedirectResponse
     {
         $definition = $this->definition($resource);
+        if ($resource === 'late-fee-settings') {
+            return redirect()->route('resources.index', ['resource' => 'settings']);
+        }
         $columns = $this->columns($definition);
         $records = $this->query($definition);
         if ($resource === 'settings') {
@@ -368,7 +371,7 @@ final class JassPageController extends Controller
         }
 
         return redirect()
-            ->route('resources.index', ['resource' => $resource])
+            ->route('resources.index', ['resource' => $resource === 'late-fee-settings' ? 'settings' : $resource])
             ->with('success', 'Se registró correctamente: '.$definition['singular'].'.');
     }
 
@@ -465,6 +468,11 @@ final class JassPageController extends Controller
         }
         if ($passwordChanged) {
             $audit->passwordChanged($request->user(), $model);
+        }
+
+        if ($resource === 'late-fee-settings') {
+            return redirect()->route('resources.index', ['resource' => 'settings'])
+                ->with('success', 'Se actualizó correctamente la configuración de mora.');
         }
 
         return redirect()

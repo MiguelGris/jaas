@@ -21,6 +21,11 @@ final class EnsurePermission
             return $next($request);
         }
 
+        if ($request->routeIs('resources.index') && $request->route('resource') === 'settings'
+            && ResourceAccess::allows($user, 'late-fee-settings')) {
+            return $next($request);
+        }
+
         $permission ??= $this->permissionFor($request);
 
         abort_unless(

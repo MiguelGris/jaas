@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\LateFeeSetting;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Setting;
 use App\Models\User;
@@ -49,10 +50,10 @@ class SettingsPresentationTest extends TestCase
         $this->actingAs($this->administrator());
         $this->get(route('resources.index', ['resource' => 'settings']))->assertOk()
             ->assertSeeInOrder(['Ciclo de pago', 'Configuración de mora', 'Día de emisión de cuotas'])
-            ->assertSee(route('resources.edit', ['resource' => 'late-fee-settings', 'record' => $fee->id]), false)
+            ->assertSee(route('settings.mora.edit'), false)
             ->assertSee('S/ 2.00 al mes');
         $this->get(route('resources.edit', ['resource' => 'late-fee-settings', 'record' => $fee->id]))->assertOk();
-        $this->put(route('resources.update', ['resource' => 'late-fee-settings', 'record' => $fee->id]), ['monthly_amount' => 3, 'grace_months' => 2, 'starts_on' => '2026-01-01', 'ends_on' => null])->assertSessionHasNoErrors()->assertRedirect();
+        $this->put(route('resources.update', ['resource' => 'late-fee-settings', 'record' => $fee->id]), ['monthly_amount' => 3, 'grace_months' => 2, 'starts_on' => '2026-01-01', 'ends_on' => null])->assertSessionHasNoErrors()->assertRedirect(route('resources.index', ['resource' => 'settings']));
         $this->assertDatabaseHas('late_fee_settings', ['id' => $fee->id, 'monthly_amount' => 3, 'grace_months' => 2]);
     }
 
@@ -67,5 +68,27 @@ class SettingsPresentationTest extends TestCase
             $this->deleteJson('/api/v1/'.$resource.'/'.$record->id)->assertForbidden();
             $this->assertDatabaseHas($record->getTable(), ['id' => $record->id]);
         }
+    }
+
+    public function test_mora_navigation_returns_to_the_general_list_without_an_intermediate_list(): void
+    {
+        LateFeeSetting::query()->create(['monthly_amount' => 2, 'grace_days' => 30, 'grace_months' => 1, 'starts_on' => '2026-01-01']);
+        $this->actingAs($this->administrator());
+        $this->get(route('resources.index', ['resource' => 'late-fee-settings']))->assertRedirect(route('resources.index', ['resource' => 'settings']));
+        $this->get(route('settings.mora.edit'))->assertOk()->assertSee(route('resources.index', ['resource' => 'settings']), false)->assertSee('Guardar cambios');
+        $this->get(route('settings.mora.show'))->assertOk()->assertSee(route('resources.index', ['resource' => 'settings']), false);
+    }
+
+    public function test_mora_only_permission_exposes_only_mora_in_the_general_list(): void
+    {
+        $role = Role::query()->create(['name' => 'ACCOUNTING']);
+        $role->permissions()->attach(Permission::query()->create(['name' => 'rates.manage']));
+        $user = User::query()->create(['name' => 'Responsable de mora', 'email' => 'mora-only@example.test', 'password' => 'test-password', 'role_id' => $role->id, 'active' => true]);
+        $this->actingAs($user);
+        $this->get(route('resources.index', ['resource' => 'settings']))->assertOk()->assertSee('Configuración de mora')->assertDontSee('Ciclo de pago')->assertDontSee('Registrar configuración');
+        $this->get(route('settings.mora.edit'))->assertOk();
+        $setting = Setting::query()->where('key', 'billing_period_months')->firstOrFail();
+        $this->get(route('resources.show', ['resource' => 'settings', 'record' => $setting->id]))->assertForbidden();
+        $this->get(route('resources.edit', ['resource' => 'settings', 'record' => $setting->id]))->assertForbidden();
     }
 }

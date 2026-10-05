@@ -16,7 +16,7 @@
         <p class="mb-4 rounded-lg bg-sky-50 p-4 text-sm">La conexión recibe uso residencial al registrarse. Para cambiar de uso, termina la vigencia anterior y comienza la siguiente al día siguiente. Las fechas no deben cruzarse.</p>
     @endif
     <div class="mb-6 flex items-center gap-3">
-        <a href="{{ route('resources.index', ['resource' => $resource]) }}" class="rounded-lg px-2 py-1 text-sm font-semibold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700">← Volver</a>
+        <a href="{{ route('resources.index', ['resource' => $resource === 'late-fee-settings' ? 'settings' : $resource]) }}" class="rounded-lg px-2 py-1 text-sm font-semibold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700">← Volver</a>
         <div><h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ $versioningRate ? 'Crear nueva versión de tarifa' : ($editing ? 'Editar '.$definition['singular'] : 'Registrar '.$definition['singular']) }}</h2><p class="mt-1 text-sm text-slate-500">Los campos marcados con <span class="text-rose-600">*</span> son obligatorios.</p></div>
     </div>
 
@@ -125,7 +125,7 @@
         </div>
 
         <div class="mt-8 flex flex-col-reverse justify-end gap-3 border-t border-slate-100 pt-5 sm:flex-row">
-            <a href="{{ route('resources.index', ['resource' => $resource]) }}" class="rounded-lg px-4 py-2.5 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-100">Cancelar</a>
+            <a href="{{ route('resources.index', ['resource' => $resource === 'late-fee-settings' ? 'settings' : $resource]) }}" class="rounded-lg px-4 py-2.5 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-100">Cancelar</a>
             <button type="submit" class="rounded-lg bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">{{ $versioningRate ? 'Crear nueva versión' : ($editing ? 'Guardar cambios' : 'Registrar') }}</button>
         </div>
     </form>
