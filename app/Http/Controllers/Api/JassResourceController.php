@@ -82,6 +82,7 @@ final class JassResourceController extends Controller
         $resource = $this->resourceName($request);
         $definition = $this->definition($request);
         $attributes = $request->validate($this->rules($definition));
+        abort_if($resource === 'settings' && ($attributes['key'] ?? null) === 'billing_last_manual_run', 403, 'Este registro se actualiza automáticamente.');
         $this->validateCustomerIdentity($resource, $attributes);
         if ($resource !== 'assembly-attendances') {
             $this->assertCompoundUnique($definition, $attributes);
@@ -131,6 +132,7 @@ final class JassResourceController extends Controller
         abort_if($resource === 'cash-closings', 405, 'Los cierres de caja confirmados no se pueden editar.');
         $definition = $this->definition($request);
         $model = $this->find($definition, $record);
+        abort_if($model instanceof Setting && $model->isAutomatic(), 403, 'Este registro automático solo se puede consultar.');
         $attributes = $request->validate($this->updateRules($this->rules($definition, $record)));
         $this->validateCustomerIdentity($resource, $attributes, $model instanceof Customer ? $model : null);
         $this->ensureCashMovementIsOpen($resource, $attributes, $model);
@@ -190,6 +192,7 @@ final class JassResourceController extends Controller
         $resource = $this->resourceName($request);
         abort_if($resource === 'cash-closings', 405, 'Los cierres de caja confirmados no se pueden eliminar.');
         $model = $this->find($this->definition($request), $record);
+        abort_if($model instanceof Setting && $model->isAutomatic(), 403, 'Este registro automático no se puede eliminar.');
         abort_if($resource === 'rates', 405, 'Las tarifas forman parte del historial y no se pueden eliminar.');
         $this->ensureCashMovementIsOpen($resource, [], $model);
         $before = $audit->snapshot($model);

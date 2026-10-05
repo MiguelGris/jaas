@@ -393,9 +393,17 @@ final class JassPageController extends Controller
         return view('resources.form', [
             'resource' => $resource,
             'definition' => $definition,
-            'record' => $this->find($definition, $record),
+            'record' => $this->editableRecord($definition, $record),
             'options' => $this->options($definition),
         ]);
+    }
+
+    private function editableRecord(array $definition, string $record): Model
+    {
+        $model = $this->find($definition, $record);
+        abort_if($model instanceof Setting && $model->isAutomatic(), 403, 'Este registro se actualiza automáticamente y solo se puede consultar.');
+
+        return $model;
     }
 
     public function update(Request $request, string $resource, string $record): RedirectResponse
@@ -463,6 +471,7 @@ final class JassPageController extends Controller
         $definition = $this->writableDefinition($resource);
         abort_if($definition['immutable'] ?? false, 403, 'Este registro contable no se puede eliminar.');
         $model = $this->find($definition, $record);
+        abort_if($model instanceof Setting && $model->isAutomatic(), 403, 'Este registro automático no se puede eliminar.');
         abort_if($resource === 'rates', 405, 'Las tarifas forman parte del historial y no se pueden eliminar.');
         $this->ensureCashMovementIsOpen($resource, [], $model);
         $audit = app(AuditService::class);
@@ -1129,7 +1138,7 @@ final class JassPageController extends Controller
             'roles' => self::catalog('Roles', 'Rol', Role::class, 255, false),
             'permissions' => self::catalog('Permisos', 'Permiso', Permission::class, 255, false),
             'settings' => self::resource('Configuraciones', 'Configuración', Setting::class, [
-                'key' => self::text('Clave', true, 100),
+                'key' => self::text('Configuración', true, 100),
                 'value' => self::text('Valor', true, 255),
                 'description' => self::text('Descripción', false, 255),
             ], ['key', 'value', 'description']),

@@ -17,7 +17,7 @@
                     <a href="{{ route('receipts.annul-form', ['payment' => $record->getKey()]) }}" class="rounded-lg bg-rose-700 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-rose-800">Anular pago</a>
                 @endif
             @endif
-            @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'edit'))
+            @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'edit') || ($resource === 'settings' && $record->isAutomatic()))
                 <a href="{{ route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="rounded-lg bg-sky-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">{{ $resource === 'rates' ? 'Nueva versión' : 'Editar' }}</a>
             @endunless
         </div>
@@ -43,6 +43,8 @@
                 @continue($resource === 'payments' && in_array($name, ['voided_at', 'voided_by', 'void_reason'], true) && blank($record->getAttribute($name)))
                 @php
                     $value = $record->getAttribute($name);
+                    if ($resource === 'settings' && $name === 'key') $value = $record->displayName();
+                    if ($resource === 'settings' && $name === 'description') $value = $record->displayDescription();
                     if (isset($field['relation'])) $value = data_get($record, $field['relation'].'.'.$field['options']['label']);
                     if (isset($field['choices'])) $value = $field['choices'][$value] ?? $value;
                     elseif (is_string($value)) $value = App\Http\Controllers\Web\JassPageController::catalogValueLabel($value);
@@ -55,7 +57,7 @@
                 <div class="grid gap-1 px-5 py-4 sm:grid-cols-3 sm:gap-6 sm:px-6"><dt class="text-sm font-semibold text-slate-500">{{ $field['label'] }}</dt><dd class="text-sm text-slate-800 sm:col-span-2">@if ($isStructuredValue)<pre class="overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs leading-5 text-slate-100">{{ $value }}</pre>@else<span class="whitespace-pre-wrap">{{ ($value === null || $value === '') ? '—' : $value }}</span>@endif</dd></div>
             @endforeach
         </dl>
-        @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || $resource === 'rates' || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'destroy'))
+        @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || $resource === 'rates' || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'destroy') || ($resource === 'settings' && $record->isAutomatic()))
             <div class="flex justify-end border-t border-slate-100 bg-slate-50 px-5 py-4 sm:px-6">
                 <form method="POST" action="{{ route('resources.destroy', ['resource' => $resource, 'record' => $record->getKey()]) }}" onsubmit="return confirm('¿Eliminar este registro? Esta acción no se puede deshacer.');">@csrf @method('DELETE')<button type="submit" class="rounded-lg px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100">Eliminar</button></form>
             </div>

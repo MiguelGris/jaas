@@ -30,7 +30,7 @@
         </p>
     @endif
     @if ($resource === 'settings')
-        <p class="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">Configuraciones vigentes: billing_period_months admite 3 o 6; billing_issue_day admite 1 a 28. Las claves antiguas se conservan como referencia y no controlan la facturación actual. La clave de un registro existente no se puede cambiar. billing_last_manual_run se actualiza automáticamente.</p>
+        <p class="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">El ciclo de pago puede ser de 3 o 6 meses y el día de emisión del 1 al 28. La configuración de mora se encuentra en la lista de Configuraciones. La última emisión manual es un registro automático de consulta.</p>
     @endif
     @if ($versioningRate)
         <div class="mb-5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
@@ -50,6 +50,7 @@
                     $value = $field['type'] === 'password'
                         ? null
                         : old($name, $editing ? $record->getAttribute($name) : ($field['default'] ?? null));
+                    if ($resource === 'settings' && $editing && $name === 'description') $value = old($name, $record->displayDescription());
                     if ($value instanceof DateTimeInterface) {
                         $value = match ($field['type']) {
                             'date' => $value->format('Y-m-d'),
@@ -91,7 +92,10 @@
                     @else
                         <label for="{{ $isSearchableSelect ? $name.'-search' : $name }}" class="mb-1.5 block text-sm font-semibold text-slate-700">{{ $field['label'] }} @if ($isRequired)<span class="text-rose-600">*</span>@elseif ($customerRequiredGroup)<span class="text-rose-600" data-customer-required="{{ $customerRequiredGroup }}">*</span>@endif</label>
                         @if ($editing && $field['type'] === 'password')<p class="mb-2 text-xs text-slate-500">Déjala en blanco para conservar la contraseña actual.</p>@endif
-                        @if ($field['type'] === 'textarea')
+                        @if ($resource === 'settings' && $editing && $name === 'key')
+                            <input type="hidden" name="key" value="{{ $record->key }}">
+                            <p class="rounded-lg bg-slate-50 px-4 py-3 text-sm">{{ $record->displayName() }}</p>
+                        @elseif ($field['type'] === 'textarea')
                             <textarea id="{{ $name }}" name="{{ $name }}" rows="4" @required($isRequired) class="block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">{{ $value }}</textarea>
                         @elseif ($field['type'] === 'select')
                             @if (! $isSearchableSelect)
