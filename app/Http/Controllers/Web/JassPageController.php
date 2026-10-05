@@ -594,7 +594,7 @@ final class JassPageController extends Controller
         $groups = [
             'Clientes' => ['customers', 'properties'],
             'Servicios' => ['connections', 'connection-usage-types', 'meters', 'meter-readings'],
-            'Facturación' => ['invoices', 'payments', 'rates', 'late-fee-settings'],
+            'Facturación' => ['invoices', 'payments', 'rates'],
             'Caja' => [
                 'incomes',
                 'expenses',

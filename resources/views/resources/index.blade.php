@@ -83,8 +83,13 @@
             <h3 class="font-bold">Configuración que usa la facturación</h3>
             <p class="mt-2">Ciclo de pago: billing_period_months (3 o 6 meses). Día de emisión: billing_issue_day (1 a 28). La gracia y el importe de mora se cambian en Configuración de mora.</p>
             <p class="mt-2">Las claves antiguas con otros nombres se conservan como referencia y no controlan la emisión actual. billing_last_manual_run es un registro informativo de la última emisión manual.</p>
-            <a href="{{ route('resources.index',['resource'=>'late-fee-settings']) }}" class="mt-3 inline-block font-semibold text-sky-700">Consultar configuración de mora →</a>
+            @if (App\Support\ResourceAccess::allows(auth()->user(), 'late-fee-settings'))
+                <a href="{{ route('resources.index',['resource'=>'late-fee-settings']) }}" class="mt-3 inline-block rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white">Configuración de mora →</a>
+            @endif
         </aside>
+    @endif
+    @if ($resource === 'late-fee-settings' && App\Support\ResourceAccess::allows(auth()->user(), 'settings'))
+        <a href="{{ route('resources.index', ['resource' => 'settings']) }}" class="mb-4 inline-block font-semibold text-sky-700">← Volver a Configuraciones de Administración</a>
     @endif
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         @if ($resource === 'customers')<div class="hidden md:block">@endif

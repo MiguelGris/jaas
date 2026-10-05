@@ -37,4 +37,14 @@ final class ResourceAccess
         return $user?->role !== null && (self::isAdministrator($user)
             || $user->role->permissions->contains('name', self::permission($resource, $action)));
     }
+
+    public static function allowsNavigation(?User $user, array $item): bool
+    {
+        if (($item['resource'] ?? null) === 'settings') {
+            return self::allows($user, 'settings') || self::allows($user, 'late-fee-settings');
+        }
+
+        return self::isAdministrator($user)
+            || ($user?->role?->permissions->contains('name', $item['permission'] ?? '') ?? false);
+    }
 }

@@ -33,7 +33,7 @@
 
                 @foreach ($navigation as $group)
                     @php
-                        $group['items'] = array_filter($group['items'], fn ($item) => App\Support\ResourceAccess::isAdministrator(auth()->user()) || auth()->user()->role?->permissions->contains('name', $item['permission']));
+                        $group['items'] = array_filter($group['items'], fn ($item) => App\Support\ResourceAccess::allowsNavigation(auth()->user(), $item));
                     @endphp
                     @continue(empty($group['items']))
                     <details class="group mb-1" open>
@@ -44,13 +44,14 @@
                         <div class="mt-1 space-y-0.5">
                             @foreach ($group['items'] as $item)
                                 @php
-                                    $canAccess = ! isset($item['permission'])
-                                        || App\Support\ResourceAccess::isAdministrator(auth()->user())
-                                        || auth()->user()->role?->permissions->contains('name', $item['permission']);
+                                    $canAccess = App\Support\ResourceAccess::allowsNavigation(auth()->user(), $item);
                                 @endphp
                                 @continue(! $canAccess)
                                 @php
                                     $resource = $item['resource'] ?? null;
+                                    if ($resource === 'settings' && ! App\Support\ResourceAccess::allows(auth()->user(), 'settings')) {
+                                        $resource = 'late-fee-settings';
+                                    }
                                     $href = $resource
                                         ? route('resources.index', ['resource' => $resource])
                                         : route($item['route_name']).(isset($item['fragment']) ? '#'.$item['fragment'] : '');
