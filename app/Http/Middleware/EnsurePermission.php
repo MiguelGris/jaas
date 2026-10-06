@@ -46,7 +46,7 @@ final class EnsurePermission
         $action = match ($request->method()) {
             'POST' => 'store', 'PUT', 'PATCH' => 'update', 'DELETE' => 'destroy',
             default => match (basename($request->path())) {
-                'create' => 'create', 'edit' => 'edit', default => 'index',
+                'create', 'registrar' => 'create', 'edit', 'editar' => 'edit', default => 'index',
             },
         };
 

@@ -10,7 +10,9 @@ use App\Http\Controllers\Web\PasswordController;
 use App\Http\Controllers\Web\PublicDebtController;
 use App\Http\Controllers\Web\ReceiptController;
 use App\Http\Controllers\Web\ReportController;
+use App\Http\Middleware\SpanishWebRoutes;
 use App\Services\SettingsListService;
+use App\Support\SpanishRoutes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -37,7 +39,7 @@ Route::middleware(['auth', 'active'])->group(function (): void {
         ->name('password.update');
 });
 
-Route::middleware(['auth', 'active', 'permission:reports.view'])->group(function (): void {
+Route::middleware(['auth', 'active', SpanishWebRoutes::class, 'permission:reports.view'])->group(function (): void {
     Route::get('/panel', [JassPageController::class, 'dashboard'])->name('dashboard');
     Route::get('/morosidad', [DelinquencyController::class, 'index'])->name('delinquencies.index');
     Route::get('/reportes', [ReportController::class, 'index'])->name('reports.index');
@@ -68,43 +70,49 @@ Route::middleware(['auth', 'active', 'permission:assemblies.manage'])->prefix('a
     Route::post('/lector', [AttendanceScannerController::class, 'store'])->name('scan');
 });
 
-Route::middleware(['auth', 'active', 'permission:rates.manage'])->group(function (): void {
-    Route::get('/gestion/settings/mora', function (JassPageController $controller, SettingsListService $settings) {
+Route::middleware(['auth', 'active', SpanishWebRoutes::class, 'permission:rates.manage'])->group(function (): void {
+    Route::get('/gestion/configuraciones/mora', function (JassPageController $controller, SettingsListService $settings) {
         $fee = $settings->currentMora();
 
         return $fee ? $controller->show('late-fee-settings', (string) $fee->id) : redirect()->route('settings.mora.edit');
     })->name('settings.mora.show');
-    Route::get('/gestion/settings/mora/editar', function (Request $request, JassPageController $controller, SettingsListService $settings) {
+    Route::get('/gestion/configuraciones/mora/editar', function (Request $request, JassPageController $controller, SettingsListService $settings) {
         $fee = $settings->currentMora();
 
         return $fee ? $controller->edit('late-fee-settings', (string) $fee->id) : $controller->create($request, 'late-fee-settings');
     })->name('settings.mora.edit');
+    Route::get('/gestion/settings/mora', fn () => redirect()->route('settings.mora.show', [], 301));
+    Route::get('/gestion/settings/mora/editar', fn () => redirect()->route('settings.mora.edit', [], 301));
 });
 
-Route::middleware(['auth', 'active', 'permission'])->prefix('gestion')->name('resources.')->group(function (): void {
+Route::middleware(['auth', 'active', SpanishWebRoutes::class, 'permission'])->prefix('gestion')->name('resources.')->group(function (): void {
     Route::get('{resource}', [JassPageController::class, 'index'])
-        ->whereIn('resource', JassPageController::resourceSlugs())
+        ->whereIn('resource', array_unique([...JassPageController::resourceSlugs(), ...array_values(SpanishRoutes::RESOURCES)]))
         ->name('index');
-    Route::get('{resource}/create', [JassPageController::class, 'create'])
-        ->whereIn('resource', JassPageController::resourceSlugs())
+    Route::get('{resource}/registrar', [JassPageController::class, 'create'])
+        ->whereIn('resource', array_unique([...JassPageController::resourceSlugs(), ...array_values(SpanishRoutes::RESOURCES)]))
         ->name('create');
     Route::post('{resource}', [JassPageController::class, 'store'])
-        ->whereIn('resource', JassPageController::resourceSlugs())
+        ->whereIn('resource', array_unique([...JassPageController::resourceSlugs(), ...array_values(SpanishRoutes::RESOURCES)]))
         ->name('store');
-    Route::get('{resource}/{record}/edit', [JassPageController::class, 'edit'])
-        ->whereIn('resource', JassPageController::resourceSlugs())
+    Route::get('{resource}/{record}/editar', [JassPageController::class, 'edit'])
+        ->whereIn('resource', array_unique([...JassPageController::resourceSlugs(), ...array_values(SpanishRoutes::RESOURCES)]))
         ->whereNumber('record')
         ->name('edit');
     Route::get('{resource}/{record}', [JassPageController::class, 'show'])
-        ->whereIn('resource', JassPageController::resourceSlugs())
+        ->whereIn('resource', array_unique([...JassPageController::resourceSlugs(), ...array_values(SpanishRoutes::RESOURCES)]))
         ->whereNumber('record')
         ->name('show');
     Route::put('{resource}/{record}', [JassPageController::class, 'update'])
-        ->whereIn('resource', JassPageController::resourceSlugs())
+        ->whereIn('resource', array_unique([...JassPageController::resourceSlugs(), ...array_values(SpanishRoutes::RESOURCES)]))
         ->whereNumber('record')
         ->name('update');
     Route::delete('{resource}/{record}', [JassPageController::class, 'destroy'])
-        ->whereIn('resource', JassPageController::resourceSlugs())
+        ->whereIn('resource', array_unique([...JassPageController::resourceSlugs(), ...array_values(SpanishRoutes::RESOURCES)]))
         ->whereNumber('record')
         ->name('destroy');
+    Route::get('{resource}/create', [JassPageController::class, 'create'])
+        ->whereIn('resource', array_keys(SpanishRoutes::RESOURCES))->name('legacy-create');
+    Route::get('{resource}/{record}/edit', [JassPageController::class, 'edit'])
+        ->whereIn('resource', array_keys(SpanishRoutes::RESOURCES))->whereNumber('record')->name('legacy-edit');
 });
