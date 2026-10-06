@@ -16,7 +16,7 @@ final class SettingsListService
     public function forUser(User $user): Collection
     {
         $settings = ResourceAccess::allows($user, 'settings')
-            ? Setting::query()->whereNotIn('key', ['Período de Pago de agua', 'Periodo de facturación'])->get()
+            ? Setting::query()->whereNotIn('key', Setting::OBSOLETE_KEYS)->get()
             : collect();
         $rows = $settings->map(fn (Setting $setting) => [
             'name' => $setting->displayName(),

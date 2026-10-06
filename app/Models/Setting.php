@@ -6,6 +6,14 @@ use Illuminate\Support\Str;
 
 class Setting extends JassModel
 {
+    public const OBSOLETE_KEYS = [
+        'Período de Pago de agua',
+        'Periodo de facturación',
+        'Día de generación de recibos',
+        'Período de gracia',
+        'payment_due_days',
+    ];
+
     public function isAutomatic(): bool
     {
         return $this->key === 'billing_last_manual_run';
