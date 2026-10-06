@@ -14,11 +14,6 @@ use Illuminate\View\View;
 
 final class CollectionController extends Controller
 {
-    public function __construct()
-    {
-        view()->share('navigation', JassPageController::navigation());
-    }
-
     public function create(Request $request, DebtService $debts): View
     {
         $customerId = $request->input('customer', old('customer_id'));

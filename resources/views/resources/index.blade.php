@@ -5,7 +5,7 @@
 
 @section('content')
     @php
-        $visibleTotal = $records->total() + (int) ($resource === 'settings' && App\Support\ResourceAccess::allows(auth()->user(), 'late-fee-settings'));
+        $visibleTotal = $records->total();
         $canAnnulPayments = App\Support\ResourceAccess::isAdministrator(auth()->user())
             || auth()->user()->role?->permissions->contains('name', 'payments.create');
         $deleteConfirmation = match ($resource) {
@@ -79,9 +79,6 @@
             @empty<p class="rounded-xl bg-white p-4">No se encontraron clientes.</p>@endforelse
         </div>
     @endif
-    @if ($resource === 'late-fee-settings' && App\Support\ResourceAccess::allows(auth()->user(), 'settings'))
-        <a href="{{ route('resources.index', ['resource' => 'settings']) }}" class="mb-4 inline-block font-semibold text-sky-700">← Volver a Configuraciones de Administración</a>
-    @endif
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         @if ($resource === 'customers')<div class="hidden md:block">@endif
         <div class="overflow-x-auto">
@@ -95,21 +92,11 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
-                    @if ($resource === 'settings' && App\Support\ResourceAccess::allows(auth()->user(), 'late-fee-settings'))
-                        <tr class="transition hover:bg-slate-50/80">
-                            <td class="px-5 py-3.5 text-slate-600">Configuración de mora</td>
-                            <td class="px-5 py-3.5 text-slate-600">Según vigencia</td>
-                            <td class="max-w-xs px-5 py-3.5 text-slate-600">Plazo de gracia e importe mensual por atraso en el pago.</td>
-                            <td class="whitespace-nowrap px-5 py-3.5 text-right"><a href="{{ route('resources.index', ['resource' => 'late-fee-settings']) }}" class="text-sm font-semibold text-slate-600 hover:text-sky-700">Ver</a></td>
-                        </tr>
-                    @endif
                     @forelse ($records as $record)
                         <tr class="transition hover:bg-slate-50/80">
                             @foreach ($columns as $name => $field)
                                 @php
                                     $value = $record->getAttribute($name);
-                                    if ($resource === 'settings' && $name === 'key') $value = $record->displayName();
-                                    if ($resource === 'settings' && $name === 'description') $value = $record->displayDescription();
                                     if (isset($field['relation'])) {
                                         $value = data_get($record, $field['relation'].'.'.$field['options']['label']);
                                     }
@@ -140,10 +127,9 @@
                                         <a href="{{ route('receipts.annul-form', ['payment' => $record->getKey()]) }}" class="ml-3 text-sm font-semibold text-rose-700 hover:text-rose-800">Anular</a>
                                     @endif
                                 @endif
-                                @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'edit') || ($resource === 'settings' && $record->isAutomatic()))
+                                @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'edit'))
                                     <a href="{{ route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="ml-3 text-sm font-semibold text-sky-700 hover:text-sky-800">{{ $resource === 'rates' ? 'Nueva versión' : 'Editar' }}</a>
                                 @endunless
-                                @if ($resource === 'settings' && $record->isAutomatic())<span class="ml-3 text-sm text-slate-500">Automático</span>@endif
                                 @if (($definition['delete_on_index'] ?? false) && App\Support\ResourceAccess::allows(auth()->user(), $resource, 'destroy'))
                                     <form method="POST" action="{{ route('resources.destroy', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="inline" onsubmit="return confirm({{ Js::from($deleteConfirmation) }});">
                                         @csrf
@@ -154,9 +140,7 @@
                             </td>
                         </tr>
                     @empty
-                        @unless ($resource === 'settings' && App\Support\ResourceAccess::allows(auth()->user(), 'late-fee-settings'))
                         <tr><td colspan="{{ count($columns) + 1 }}" class="px-5 py-14 text-center text-sm text-slate-500">No hay registros todavía.</td></tr>
-                        @endunless
                     @endforelse
                 </tbody>
             </table>

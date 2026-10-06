@@ -10,11 +10,6 @@ use Illuminate\View\View;
 
 final class PasswordController extends Controller
 {
-    public function __construct()
-    {
-        view()->share('navigation', JassPageController::navigation());
-    }
-
     public function edit(): View
     {
         return view('auth.change-password');

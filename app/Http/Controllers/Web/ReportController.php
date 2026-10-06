@@ -20,11 +20,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class ReportController extends Controller
 {
-    public function __construct()
-    {
-        view()->share('navigation', JassPageController::navigation());
-    }
-
     public function index(ReportService $reports): View
     {
         $assemblies = Assembly::query()->orderByDesc('held_on')->limit(100)->get();

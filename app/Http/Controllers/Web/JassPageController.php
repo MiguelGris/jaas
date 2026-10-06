@@ -44,6 +44,7 @@ use App\Services\OperationalRecordService;
 use App\Services\PaymentConceptService;
 use App\Services\RateVersionService;
 use App\Services\ReportService;
+use App\Services\ResourceValidationService;
 use App\Services\SettingsListService;
 use App\Support\CatalogLabel;
 use App\Support\ResourceAccess;
@@ -64,11 +65,6 @@ use Illuminate\View\View;
  */
 final class JassPageController extends Controller
 {
-    public function __construct()
-    {
-        view()->share('navigation', self::navigation());
-    }
-
     /**
      * @return list<string>
      */
@@ -336,7 +332,7 @@ final class JassPageController extends Controller
         $this->validateBillingSettings($request, $resource);
         $audit = app(AuditService::class);
 
-        $this->ensureCashMovementIsOpen($resource, $attributes);
+        app(ResourceValidationService::class)->ensureCashMovementIsOpen($resource, $attributes);
 
         if (in_array($resource, ['incomes', 'expenses'], true)) {
             $attributes['user_id'] = $request->user()?->getKey();
@@ -354,7 +350,7 @@ final class JassPageController extends Controller
         }
 
         if ($resource === 'meters') {
-            $this->ensureMeterCanBeAssigned($attributes);
+            app(ResourceValidationService::class)->ensureMeterCanBeAssigned($attributes);
         }
 
         if ($resource === 'rates') {
@@ -429,7 +425,7 @@ final class JassPageController extends Controller
         $model = $this->find($definition, $record);
         $attributes = $request->validate($this->rules($definition, true, $model->getKey()));
         $this->validateBillingSettings($request, $resource, $model);
-        $this->ensureCashMovementIsOpen($resource, $attributes, $model);
+        app(ResourceValidationService::class)->ensureCashMovementIsOpen($resource, $attributes, $model);
         $audit = app(AuditService::class);
         $before = $audit->snapshot($model);
 
@@ -446,10 +442,10 @@ final class JassPageController extends Controller
         $passwordChanged = $resource === 'users' && array_key_exists('password', $attributes);
 
         if ($resource === 'connections') {
-            $this->ensureConnectionCanUsePaymentMode($model, $attributes);
+            app(ResourceValidationService::class)->ensureConnectionCanUsePaymentMode($model, $attributes);
         }
         if ($resource === 'meters') {
-            $this->ensureMeterCanBeAssigned($attributes, $model);
+            app(ResourceValidationService::class)->ensureMeterCanBeAssigned($attributes, $model);
         }
 
         if ($resource === 'rates') {
@@ -497,7 +493,7 @@ final class JassPageController extends Controller
         $model = $this->find($definition, $record);
         abort_if(in_array($resource, ['settings', 'late-fee-settings'], true), 403, 'Las configuraciones no se pueden eliminar. Puedes editar sus valores.');
         abort_if($resource === 'rates', 405, 'Las tarifas forman parte del historial y no se pueden eliminar.');
-        $this->ensureCashMovementIsOpen($resource, [], $model);
+        app(ResourceValidationService::class)->ensureCashMovementIsOpen($resource, [], $model);
         $audit = app(AuditService::class);
         $before = $audit->snapshot($model);
 
@@ -529,75 +525,6 @@ final class JassPageController extends Controller
         return redirect()
             ->route('resources.index', ['resource' => $resource])
             ->with('success', 'Se eliminó correctamente: '.$definition['singular'].'.');
-    }
-
-    /** @param array<string, mixed> $attributes */
-    private function ensureCashMovementIsOpen(string $resource, array $attributes, ?Model $model = null): void
-    {
-        $dateField = match ($resource) {
-            'incomes' => 'received_on',
-            'expenses' => 'incurred_on',
-            default => null,
-        };
-
-        if ($dateField === null) {
-            return;
-        }
-
-        $cash = app(CashService::class);
-
-        if ($model !== null) {
-            $cash->ensureMovementDateIsOpen($model->getAttribute($dateField), $dateField);
-        }
-
-        if (array_key_exists($dateField, $attributes)) {
-            $cash->ensureMovementDateIsOpen($attributes[$dateField], $dateField);
-        }
-    }
-
-    /** @param array<string, mixed> $attributes */
-    private function ensureConnectionCanUsePaymentMode(Connection $connection, array $attributes): void
-    {
-        $mode = $attributes['payment_mode'] ?? $connection->payment_mode ?? Connection::PAYMENT_FIXED;
-
-        if ($mode === Connection::PAYMENT_FIXED && $connection->meters()->where('active', true)->exists()) {
-            throw ValidationException::withMessages([
-                'payment_mode' => 'Desactiva o retira el medidor activo antes de cambiar la conexión a pago fijo.',
-            ]);
-        }
-    }
-
-    /** @param array<string, mixed> $attributes */
-    private function ensureMeterCanBeAssigned(array $attributes, ?Meter $meter = null): void
-    {
-        $connectionId = (int) ($attributes['connection_id'] ?? $meter?->connection_id);
-        $connection = Connection::query()->findOrFail($connectionId);
-
-        if ($connection->payment_mode !== Connection::PAYMENT_METERED) {
-            throw ValidationException::withMessages([
-                'connection_id' => 'Solo las conexiones configuradas con cobro por medidor pueden tener un medidor asignado.',
-            ]);
-        }
-
-        $active = array_key_exists('active', $attributes) ? (bool) $attributes['active'] : ($meter?->active ?? true);
-        if ($active) {
-            $activeMeters = Meter::query()
-                ->where('connection_id', $connection->getKey())
-                ->where('active', true)
-                ->when($meter, fn ($query) => $query->where('id', '!=', $meter->getKey()));
-
-            if ($activeMeters->exists()) {
-                throw ValidationException::withMessages(['connection_id' => 'La conexión ya tiene un medidor activo.']);
-            }
-        }
-
-        $initialReading = (float) ($attributes['initial_reading'] ?? $meter?->initial_reading ?? 0);
-        $firstReading = $meter?->readings()->orderBy('read_on')->orderBy('id')->first();
-        if ($firstReading !== null && $initialReading > (float) $firstReading->current_reading) {
-            throw ValidationException::withMessages([
-                'initial_reading' => 'La lectura inicial no puede superar la primera lectura registrada.',
-            ]);
-        }
     }
 
     /** @param array<string, mixed> $definition */

@@ -34,8 +34,7 @@ class JassCatalogSeeder extends Seeder
         ], ['name'], ['description']);
 
         $this->upsert('settings', [
-            ['key' => 'billing_period_months', 'value' => '3', 'description' => 'Meses agrupados en cada ciclo de pago; puede cambiarse a 6'],
-            ['key' => 'payment_due_days', 'value' => '30', 'description' => 'Días permitidos para realizar el pago'],
+            ['key' => 'billing_period_months', 'value' => '3', 'description' => 'Cantidad de meses por ciclo de pago.'],
         ], ['key'], ['value', 'description', 'updated_at'], $now);
 
         $this->upsert('customer_statuses', [

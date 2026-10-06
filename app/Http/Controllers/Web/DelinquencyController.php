@@ -10,11 +10,6 @@ use Illuminate\View\View;
 
 final class DelinquencyController extends Controller
 {
-    public function __construct()
-    {
-        view()->share('navigation', JassPageController::navigation());
-    }
-
     public function index(Request $request, DebtService $debts): View
     {
         $filters = $request->validate([

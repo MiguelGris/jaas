@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Http\Controllers\Web\JassPageController;
 use App\Support\SpanishRoutes;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -23,6 +25,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        View::composer('layouts.app', fn ($view) => $view->with('navigation', JassPageController::navigation()));
         App::setLocale('es');
         App::setFallbackLocale('es');
         Carbon::setLocale('es');

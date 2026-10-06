@@ -13,11 +13,6 @@ use Illuminate\View\View;
 
 final class ReceiptController extends Controller
 {
-    public function __construct()
-    {
-        view()->share('navigation', JassPageController::navigation());
-    }
-
     public function thermal(Payment $payment): View
     {
         $payment->load([

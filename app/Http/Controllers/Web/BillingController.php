@@ -13,11 +13,6 @@ use Illuminate\Support\Facades\DB;
 
 final class BillingController extends Controller
 {
-    public function __construct()
-    {
-        view()->share('navigation', JassPageController::navigation());
-    }
-
     private function period(Request $request): array
     {
         return $request->validate([

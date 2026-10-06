@@ -15,11 +15,6 @@ use Illuminate\View\View;
 
 final class AttendanceScannerController extends Controller
 {
-    public function __construct()
-    {
-        view()->share('navigation', JassPageController::navigation());
-    }
-
     public function create(Request $request): View
     {
         $assemblies = Assembly::query()
