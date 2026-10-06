@@ -21,13 +21,14 @@ class SettingsPresentationTest extends TestCase
 
     public function test_settings_list_has_a_mora_row_and_a_read_only_manual_run_with_plain_descriptions(): void
     {
+        Setting::query()->create(['key' => 'Período de Pago de agua', 'value' => '3']);
         Setting::query()->create(['key' => 'Periodo de facturación', 'value' => '3', 'description' => 'Solo 3 o 6 meses.']);
         $automatic = Setting::query()->create(['key' => 'billing_last_manual_run', 'value' => '2026-10-05 · 2026-10 · 10 cuotas', 'description' => 'Ver billing_last_manual_run en settings']);
         Setting::query()->updateOrCreate(['key' => 'billing_period_months'], ['value' => '3', 'description' => 'Configura billing_periods y late_fee_settings']);
         $this->actingAs($this->administrator());
         $response = $this->get(route('resources.index', ['resource' => 'settings']));
         $response->assertOk()->assertSee('Configuración de mora')->assertSee('Última emisión manual')->assertSee('Ciclo de pago')->assertSee('Automático')
-            ->assertDontSee('billing_last_manual_run')->assertDontSee('billing_period_months')->assertDontSee('late_fee_settings')->assertDontSee('Solo 3 o 6 meses')->assertSee('La duración vigente se configura en Ciclo de pago.')
+            ->assertDontSee('billing_last_manual_run')->assertDontSee('billing_period_months')->assertDontSee('late_fee_settings')->assertDontSee('Solo 3 o 6 meses')->assertDontSee('Periodo De Facturación')->assertDontSee('Período De Pago De Agua')
             ->assertDontSee(route('resources.edit', ['resource' => 'settings', 'record' => $automatic->id]), false);
         $this->assertMatchesRegularExpression('/<tr[^>]*>\s*<td[^>]*>Configuración de mora<\/td>/', $response->getContent());
         $this->get(route('resources.show', ['resource' => 'settings', 'record' => $automatic->id]))->assertOk()->assertDontSee('>Editar</a>', false)->assertDontSee('>Eliminar</button>', false)->assertDontSee('billing_last_manual_run');
