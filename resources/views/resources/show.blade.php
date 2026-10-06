@@ -18,10 +18,17 @@
                 @endif
             @endif
             @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'edit') || ($resource === 'settings' && $record->isAutomatic()))
-                <a href="{{ route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="rounded-lg bg-sky-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">{{ $resource === 'rates' ? 'Nueva versión' : 'Editar' }}</a>
+                <a href="{{ $resource === 'late-fee-settings' ? route('settings.mora.edit') : route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="rounded-lg bg-sky-600 px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">{{ in_array($resource, ['rates', 'late-fee-settings'], true) ? 'Nueva versión' : 'Editar' }}</a>
             @endunless
         </div>
     </div>
+
+    @if ($resource === 'late-fee-settings')
+        @include('resources.mora-history')
+    @endif
+    @if ($resource === 'settings' && $record->key === 'billing_period_months')
+        @include('resources.cycle-schedule')
+    @endif
 
     @if (in_array($resource, ['customers','properties','connections'], true) && App\Support\ResourceAccess::allows(auth()->user(), match ($resource) { 'customers' => 'properties', 'properties' => 'connections', default => 'connection-usage-types' }, 'create'))
         <aside class="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4">

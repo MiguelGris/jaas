@@ -9,6 +9,7 @@ use App\Models\LateFeeSetting;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 final class DebtService
 {
@@ -182,13 +183,28 @@ final class DebtService
 
     private function lateFeeFor(Invoice $invoice, Carbon $date): float
     {
-        $setting = $this->lateFeeSetting($date);
-
-        if ($setting === null) {
-            return 0;
+        // A paid invoice is immutable. Further arrears belong to the remaining cycle debt.
+        if ($invoice->status === 'PAID') {
+            return (float) $invoice->late_fee;
         }
+        $cycle = app(BillingCycleService::class)->forInvoice($invoice);
+        $siblings = Invoice::query()->where('connection_id', $invoice->connection_id)
+            ->where('billing_period_id', $invoice->billing_period_id)
+            ->whereBetween('period_starts_on', [$cycle['start']->toDateString(), $cycle['end']->toDateString()])
+            ->orderBy('period_starts_on')->orderBy('id')
+            ->when(DB::transactionLevel() > 0, fn ($query) => $query->lockForUpdate())
+            ->get();
+        $carrier = $siblings->firstWhere('status', 'PENDING');
+        if (! $carrier?->is($invoice)) {
+            return (float) $invoice->late_fee;
+        }
+        $amount = $invoice->cycle_late_fee_amount ?? $this->lateFeeSetting($cycle['start'])?->monthly_amount ?? 0;
+        $accrued = round($this->lateFeeMonths($invoice, $date) * (float) $amount, 2);
+        // Previously recorded mora is credited to the cycle, never charged again.
+        // Additional mora is shown on its oldest pending quota, once per cycle.
+        $recorded = (float) $siblings->sum('late_fee');
 
-        return round($this->lateFeeMonths($invoice, $date) * (float) $setting->monthly_amount, 2);
+        return round((float) $invoice->late_fee + max(0, $accrued - $recorded), 2);
     }
 
     private function lateFeeMonths(Invoice $invoice, Carbon $date): int

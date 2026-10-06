@@ -25,13 +25,23 @@ class Setting extends JassModel
 
     public function displayDescription(): string
     {
-        if (! $this->isAutomatic() && $this->key !== 'payment_due_days'
+        $legacy = match ($this->key) {
+            'Periodo de facturación', 'Período de Pago de agua' => 'Dato del esquema anterior. La duración vigente se configura en Ciclo de pago.',
+            'Período de gracia' => 'Dato del esquema anterior. El plazo vigente se configura en Configuración de mora.',
+            'Día de generación de recibos' => 'Dato del esquema anterior. El día vigente se configura en Día de emisión de cuotas.',
+            default => null,
+        };
+        if ($legacy !== null) {
+            return $legacy;
+        }
+
+        if (! $this->isAutomatic() && ! in_array($this->key, ['payment_due_days', 'billing_period_months'], true)
             && filled($this->description) && ! preg_match('/\b[a-z]+(?:_[a-z]+)+\b/', $this->description)) {
             return $this->description;
         }
 
         return match ($this->key) {
-            'billing_period_months' => 'Cantidad de meses por ciclo de pago. Puede ser de 3 o 6 meses.',
+            'billing_period_months' => 'Duración en meses enteros positivos. El nuevo ciclo comienza después del activo; permite programar un mes de inicio.',
             'billing_issue_day' => 'Día del mes en que se emiten las cuotas. Puede ser del 1 al 28.',
             'billing_last_manual_run' => 'Fecha, periodo y cantidad de cuotas de la última emisión manual. Se actualiza automáticamente y no se puede editar.',
             'work_exemption_age' => 'Edad a partir de la cual se exonera al titular de las faenas.',

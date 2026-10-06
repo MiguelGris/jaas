@@ -2,10 +2,10 @@
 
 @php
     $editing = $record !== null;
-    $versioningRate = $editing && $resource === 'rates';
+    $versioningRate = $editing && in_array($resource, ['rates', 'late-fee-settings'], true);
 @endphp
 @section('title', ($versioningRate ? 'Nueva versión de ' : ($editing ? 'Editar ' : 'Registrar ')).Str::lower($definition['singular']))
-@section('heading', $versioningRate ? 'Nueva versión de tarifa' : ($editing ? 'Editar '.$definition['singular'] : 'Registrar '.$definition['singular']))
+@section('heading', $versioningRate ? 'Nueva versión de '.Str::lower($definition['singular']) : ($editing ? 'Editar '.$definition['singular'] : 'Registrar '.$definition['singular']))
 
 @section('content')
     @if ($resource === 'assembly-attendances')
@@ -17,7 +17,7 @@
     @endif
     <div class="mb-6 flex items-center gap-3">
         <a href="{{ route('resources.index', ['resource' => $resource === 'late-fee-settings' ? 'settings' : $resource]) }}" class="rounded-lg px-2 py-1 text-sm font-semibold text-slate-500 transition hover:bg-slate-200 hover:text-slate-700">← Volver</a>
-        <div><h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ $versioningRate ? 'Crear nueva versión de tarifa' : ($editing ? 'Editar '.$definition['singular'] : 'Registrar '.$definition['singular']) }}</h2><p class="mt-1 text-sm text-slate-500">Los campos marcados con <span class="text-rose-600">*</span> son obligatorios.</p></div>
+        <div><h2 class="text-2xl font-bold tracking-tight text-slate-900">{{ $versioningRate ? 'Crear nueva versión de '.Str::lower($definition['singular']) : ($editing ? 'Editar '.$definition['singular'] : 'Registrar '.$definition['singular']) }}</h2><p class="mt-1 text-sm text-slate-500">Los campos marcados con <span class="text-rose-600">*</span> son obligatorios.</p></div>
     </div>
 
     @if (in_array($resource, ['customers', 'properties', 'connections', 'connection-usage-types']))
@@ -30,12 +30,19 @@
         </p>
     @endif
     @if ($resource === 'settings')
-        <p class="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">El ciclo de pago puede ser de 3 o 6 meses y el día de emisión del 1 al 28. La configuración de mora se encuentra en la lista de Configuraciones. La última emisión manual es un registro automático de consulta.</p>
+        <p class="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">El ciclo de pago admite cualquier cantidad de meses enteros positivos y el día de emisión del 1 al 28. La configuración de mora se encuentra en la lista de Configuraciones. La última emisión manual es un registro automático de consulta.</p>
     @endif
     @if ($versioningRate)
         <div class="mb-5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-            Indica una nueva fecha en <strong>Vigente desde</strong>. La versión actual se cerrará el día anterior y conservará sus importes históricos.
+            Indica una nueva fecha en <strong>{{ $resource === 'late-fee-settings' ? 'Inicio de vigencia' : 'Vigente desde' }}</strong>. La versión actual se cerrará el día anterior y conservará sus importes históricos.
         </div>
+    @endif
+
+    @if ($resource === 'late-fee-settings')
+        @include('resources.mora-history')
+    @endif
+    @if ($resource === 'settings' && $record?->key === 'billing_period_months')
+        @include('resources.cycle-schedule')
     @endif
 
     <form method="POST" action="{{ $editing ? route('resources.update', ['resource' => $resource, 'record' => $record->getKey()]) : route('resources.store', ['resource' => $resource]) }}" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
@@ -43,6 +50,14 @@
         @if ($errors->any())<div role="alert" tabindex="-1" class="mb-5 rounded-lg bg-rose-50 p-4 text-rose-800">Revisa los campos indicados; tus datos se conservaron.</div>@endif
         @if ($editing) @method('PUT') @endif
 
+        @if ($resource === 'settings' && $record?->key === 'billing_period_months')
+            <div class="mb-5">
+                <label for="cycle_start_month" class="block text-sm font-semibold">Mes de inicio del nuevo ciclo (opcional)</label>
+                <input id="cycle_start_month" name="cycle_start_month" type="month" value="{{ old('cycle_start_month') }}" class="mt-2 rounded-lg border-slate-300">
+                <p class="mt-2 text-sm text-slate-600">En blanco: comienza inmediatamente después del ciclo activo. Si eliges otro mes, debe ser el inicio de un ciclo posterior. Antes de emitir la primera cuota puedes elegir libremente el mes inicial.</p>
+                @error('cycle_start_month')<p class="text-sm text-rose-700">{{ $message }}</p>@enderror
+            </div>
+        @endif
         <div class="grid gap-x-6 gap-y-5 md:grid-cols-2">
             @foreach ($definition['fields'] as $name => $field)
                 @continue($field['readonly'] ?? false)
@@ -50,6 +65,7 @@
                     $value = $field['type'] === 'password'
                         ? null
                         : old($name, $editing ? $record->getAttribute($name) : ($field['default'] ?? null));
+                    if ($resource === 'late-fee-settings' && $editing && in_array($name, ['starts_on', 'ends_on'], true)) $value = old($name);
                     if ($resource === 'settings' && $editing && $name === 'description') $value = old($name, $record->displayDescription());
                     if ($value instanceof DateTimeInterface) {
                         $value = match ($field['type']) {
@@ -95,6 +111,9 @@
                         @if ($resource === 'settings' && $editing && $name === 'key')
                             <input type="hidden" name="key" value="{{ $record->key }}">
                             <p class="rounded-lg bg-slate-50 px-4 py-3 text-sm">{{ $record->displayName() }}</p>
+                        @elseif ($resource === 'settings' && $record?->key === 'billing_period_months' && $name === 'value')
+                            <input type="number" id="value" name="value" min="1" step="1" required value="{{ $value }}" class="block w-full rounded-lg border-slate-300 text-sm">
+                            <p class="mt-1 text-sm text-slate-500">Duración en meses: por ejemplo 1, 4 u 8.</p>
                         @elseif ($field['type'] === 'textarea')
                             <textarea id="{{ $name }}" name="{{ $name }}" rows="4" @required($isRequired) class="block w-full rounded-lg border-slate-300 text-sm shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100">{{ $value }}</textarea>
                         @elseif ($field['type'] === 'select')

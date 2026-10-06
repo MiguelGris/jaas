@@ -43,11 +43,11 @@ class PaymentConceptReportTest extends TestCase
         $receipt->assertOk()
             ->assertSee('Conceptos pagados')
             ->assertSee('Cuota de servicio 01/2026')
-            ->assertSee('Mora de la cuota 01/2026')
+            ->assertSee('Mora del ciclo')
             ->assertSee('Inasistencia a asamblea');
 
         $this->get(route('receipts.thermal', ['payment' => $payment->id]))
-            ->assertOk()->assertSee('Cuota de servicio 01/2026')->assertSee('Mora de la cuota 01/2026')
+            ->assertOk()->assertSee('Cuota de servicio 01/2026')->assertSee('Mora del ciclo')
             ->assertSee('Inasistencia a asamblea')->assertSee('25.00')->assertDontSee("window.addEventListener('load'", false);
 
         $monthly = app(ReportService::class)->build('payment-concepts-monthly', ['month' => '2026-01']);

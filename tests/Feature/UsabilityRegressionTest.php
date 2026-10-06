@@ -147,8 +147,8 @@ class UsabilityRegressionTest extends TestCase
     {
         $setting = Setting::query()->updateOrCreate(['key' => 'billing_period_months'], ['value' => '3']);
         $url = route('resources.update', ['resource' => 'settings', 'record' => $setting->id]);
-        $this->actingAs($this->administrator())->put($url, ['key' => 'billing_period_months', 'value' => '5'])->assertSessionHasErrors('value');
-        $this->put($url,['key' => 'antiguo', 'value' => '6'])->assertSessionHasErrors('key');
-        $this->assertSame('3',$setting->fresh()->value);
+        $this->actingAs($this->administrator())->put($url, ['key' => 'billing_period_months', 'value' => '0'])->assertSessionHasErrors('value');
+        $this->put($url, ['key' => 'antiguo', 'value' => '6'])->assertSessionHasErrors('key');
+        $this->assertSame('3', $setting->fresh()->value);
     }
 }

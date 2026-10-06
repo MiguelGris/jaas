@@ -72,7 +72,7 @@ final class PaymentConceptService
                 $rows->push([
                     'category' => 'Mora',
                     'concept' => $invoice->invoice_code,
-                    'detail' => 'Mora de la cuota '.$period,
+                    'detail' => 'Mora del ciclo '.$invoice->cycleLabel(),
                     'amount' => $parts['late_fees'],
                 ]);
             }

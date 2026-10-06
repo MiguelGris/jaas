@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Assembly;
+use App\Models\Connection;
 use App\Models\Customer;
 use App\Models\Fine;
 use App\Models\Invoice;
@@ -48,6 +49,10 @@ final class PaymentCollectionService
                     throw ValidationException::withMessages(['fines' => 'La asamblea está programada o cancelada. Sus multas no se pueden cobrar.']);
                 }
             }
+            // Lock the entire supply: different quotas can share one cycle's mora.
+            $connectionIds = Invoice::query()->whereIn('id', $invoiceIds)->pluck('connection_id')->unique()->sort();
+            Connection::query()->whereIn('id', $connectionIds)->orderBy('id')->lockForUpdate()->get();
+            sort($invoiceIds);
             $date = now();
             $allocations = [];
 

@@ -35,7 +35,9 @@ use App\Models\Setting;
 use App\Models\UsageType;
 use App\Models\User;
 use App\Services\AuditService;
+use App\Services\BillingCycleService;
 use App\Services\CashService;
+use App\Services\LateFeeVersionService;
 use App\Services\MeterReadingService;
 use App\Services\OperationalRecordService;
 use App\Services\RateVersionService;
@@ -110,10 +112,12 @@ final class JassResourceController extends Controller
             'assembly-attendances' => app(OperationalRecordService::class)->attendance($attributes),
             'connection-usage-types' => app(OperationalRecordService::class)->usage($attributes),
             'rates' => app(RateVersionService::class)->create($attributes, $request->user()),
+            'late-fee-settings' => app(LateFeeVersionService::class)->create($attributes, $request->user()),
+            'settings' => app(BillingCycleService::class)->saveSetting($attributes, null, $request->input('cycle_start_month'), $request->user()),
             'meter-readings' => app(MeterReadingService::class)->create($attributes, $request->user()?->getKey()),
             default => $this->modelClass($definition)::create($attributes),
         };
-        if (! in_array($resource, ['rates', 'assembly-attendances'], true)) {
+        if (! in_array($resource, ['rates', 'late-fee-settings', 'settings', 'assembly-attendances'], true)) {
             $audit->created($request->user(), $record);
         }
 
@@ -156,6 +160,10 @@ final class JassResourceController extends Controller
 
         if ($resource === 'rates') {
             $model = app(RateVersionService::class)->revise($model, $attributes, $request->user());
+        } elseif ($resource === 'late-fee-settings') {
+            $model = app(LateFeeVersionService::class)->revise($model, $attributes, $request->user());
+        } elseif ($resource === 'settings') {
+            $model = app(BillingCycleService::class)->saveSetting($attributes, $model, $request->input('cycle_start_month'), $request->user());
         } elseif ($resource === 'meter-readings') {
             $readingAttributes = array_merge(
                 $model->only(['meter_id', 'read_on', 'current_reading', 'user_id', 'notes']),
@@ -176,7 +184,7 @@ final class JassResourceController extends Controller
                 app(MeterReadingService::class)->recalculateForMeter($model);
             }
         }
-        if (! in_array($resource, ['rates', 'assembly-attendances'], true)) {
+        if (! in_array($resource, ['rates', 'late-fee-settings', 'settings', 'assembly-attendances'], true)) {
             $audit->updated($request->user(), $model, $before);
         }
         if ($passwordChanged) {
@@ -551,7 +559,7 @@ final class JassResourceController extends Controller
             'billing-periods' => [
                 'model' => BillingPeriod::class,
                 'rules' => static fn (?string $id): array => [
-                    'months' => 'required|integer|min:1|max:120',
+                    'months' => 'required|integer|min:1|max:2147483647',
                     'description' => 'nullable|string|max:100',
                 ],
                 'with' => [],
@@ -560,7 +568,7 @@ final class JassResourceController extends Controller
                 'model' => LateFeeSetting::class,
                 'rules' => static fn (?string $id): array => [
                     'monthly_amount' => 'required|numeric|min:0',
-                    'grace_months' => 'required|integer|min:1|max:12',
+                    'grace_months' => 'required|integer|min:0|max:12',
                     'starts_on' => 'required|date',
                     'ends_on' => 'nullable|date|after_or_equal:starts_on',
                 ],

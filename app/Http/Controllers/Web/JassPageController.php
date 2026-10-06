@@ -35,8 +35,10 @@ use App\Models\Setting;
 use App\Models\UsageType;
 use App\Models\User;
 use App\Services\AuditService;
+use App\Services\BillingCycleService;
 use App\Services\CashService;
 use App\Services\DebtService;
+use App\Services\LateFeeVersionService;
 use App\Services\MeterReadingService;
 use App\Services\OperationalRecordService;
 use App\Services\PaymentConceptService;
@@ -357,6 +359,10 @@ final class JassPageController extends Controller
 
         if ($resource === 'rates') {
             $record = app(RateVersionService::class)->create($attributes, $request->user());
+        } elseif ($resource === 'late-fee-settings') {
+            $record = app(LateFeeVersionService::class)->create($attributes, $request->user());
+        } elseif ($resource === 'settings') {
+            $record = app(BillingCycleService::class)->saveSetting($attributes, null, $request->input('cycle_start_month'), $request->user());
         } elseif ($resource === 'assembly-attendances') {
             $record = app(OperationalRecordService::class)->attendance($attributes);
         } elseif ($resource === 'connection-usage-types') {
@@ -366,7 +372,7 @@ final class JassPageController extends Controller
         } else {
             $record = $this->modelClass($definition)::create($attributes);
         }
-        if (! in_array($resource, ['rates', 'assembly-attendances'], true)) {
+        if (! in_array($resource, ['rates', 'late-fee-settings', 'settings', 'assembly-attendances'], true)) {
             $audit->created($request->user(), $record);
         }
 
@@ -448,6 +454,10 @@ final class JassPageController extends Controller
 
         if ($resource === 'rates') {
             $model = app(RateVersionService::class)->revise($model, $attributes, $request->user());
+        } elseif ($resource === 'late-fee-settings') {
+            $model = app(LateFeeVersionService::class)->revise($model, $attributes, $request->user());
+        } elseif ($resource === 'settings') {
+            $model = app(BillingCycleService::class)->saveSetting($attributes, $model, $request->input('cycle_start_month'), $request->user());
         } elseif ($resource === 'meter-readings') {
             $model = app(MeterReadingService::class)->update($model, $attributes);
         } elseif ($resource === 'assembly-attendances') {
@@ -463,7 +473,7 @@ final class JassPageController extends Controller
                 app(MeterReadingService::class)->recalculateForMeter($model);
             }
         }
-        if (! in_array($resource, ['rates', 'assembly-attendances'], true)) {
+        if (! in_array($resource, ['rates', 'late-fee-settings', 'settings', 'assembly-attendances'], true)) {
             $audit->updated($request->user(), $model, $before);
         }
         if ($passwordChanged) {
@@ -843,7 +853,7 @@ final class JassPageController extends Controller
             throw ValidationException::withMessages(['key' => 'Este registro se actualiza automáticamente al emitir cuotas.']);
         }
         $rules = match ($key) {
-            'billing_period_months' => ['required', 'integer', 'in:3,6'],
+            'billing_period_months' => ['required', 'integer', 'min:1'],
             'billing_issue_day' => ['required', 'integer', 'min:1', 'max:28'],
             default => null,
         };
@@ -1035,12 +1045,12 @@ final class JassPageController extends Controller
                 'notes' => self::textarea('Notas', false),
             ], ['usage_type_id', 'year', 'amount', 'metered_unit_price', 'starts_on', 'ends_on', 'approved_by_assembly']),
             'billing-periods' => self::resource('Ciclos de pago', 'Ciclo de pago', BillingPeriod::class, [
-                'months' => self::integerNumber('Meses', true, 1, 120),
+                'months' => self::integerNumber('Meses', true, 1, 2147483647),
                 'description' => self::text('Descripción', false, 100),
             ], ['months', 'description']),
             'late-fee-settings' => self::resource('Configuración de mora', 'Configuración de mora', LateFeeSetting::class, [
-                'monthly_amount' => self::number('Monto mensual', true, 0),
-                'grace_months' => self::integerNumber('Meses de gracia', true, 1, 12),
+                'monthly_amount' => self::number('Monto por mes de atraso del ciclo', true, 0),
+                'grace_months' => self::integerNumber('Meses de gracia', true, 0, 12),
                 'starts_on' => self::date('Inicio de vigencia'),
                 'ends_on' => self::date('Fin de vigencia', false),
             ], ['monthly_amount', 'grace_months', 'starts_on', 'ends_on']),

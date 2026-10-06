@@ -11,6 +11,7 @@ use App\Http\Controllers\Web\PublicDebtController;
 use App\Http\Controllers\Web\ReceiptController;
 use App\Http\Controllers\Web\ReportController;
 use App\Http\Middleware\SpanishWebRoutes;
+use App\Models\LateFeeSetting;
 use App\Services\SettingsListService;
 use App\Support\SpanishRoutes;
 use Illuminate\Http\Request;
@@ -77,7 +78,7 @@ Route::middleware(['auth', 'active', SpanishWebRoutes::class, 'permission:rates.
         return $fee ? $controller->show('late-fee-settings', (string) $fee->id) : redirect()->route('settings.mora.edit');
     })->name('settings.mora.show');
     Route::get('/gestion/configuraciones/mora/editar', function (Request $request, JassPageController $controller, SettingsListService $settings) {
-        $fee = $settings->currentMora();
+        $fee = LateFeeSetting::query()->orderByDesc('starts_on')->orderByDesc('id')->first();
 
         return $fee ? $controller->edit('late-fee-settings', (string) $fee->id) : $controller->create($request, 'late-fee-settings');
     })->name('settings.mora.edit');

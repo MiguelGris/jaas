@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Connection;
 use App\Models\Payment;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +38,8 @@ final class PaymentCancellationService
 
             $this->cash->ensureMovementDateIsOpen($payment->paid_at, 'payment');
 
+            $connectionIds = $payment->allocations->pluck('invoice.connection_id')->filter()->unique()->sort();
+            Connection::query()->whereIn('id', $connectionIds)->orderBy('id')->lockForUpdate()->get();
             $payment->forceFill([
                 'status' => Payment::STATUS_VOIDED,
                 'voided_at' => now(),
@@ -50,7 +53,12 @@ final class PaymentCancellationService
                 ->pluck('invoice')
                 ->filter()
                 ->unique('id')
-                ->each(fn ($invoice) => $this->debts->synchroniseInvoice($invoice, now()));
+                ->each(function ($invoice): void {
+                    $invoice->refresh();
+                    $invoice->status = 'PENDING';
+                    $invoice->save();
+                    $this->debts->synchroniseInvoice($invoice, now());
+                });
             $payment->allocations
                 ->pluck('fine')
                 ->filter()

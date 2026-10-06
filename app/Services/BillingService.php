@@ -32,7 +32,7 @@ final class BillingService
     {
         $periodStart = Carbon::parse($month)->startOfMonth();
         $periodEnd = $periodStart->copy()->endOfMonth();
-        $billingPeriod = BillingPeriod::query()->where('months', $this->paymentFrequency())->first();
+        app(BillingCycleService::class)->forMonth($periodStart);
         $rows = [];
         $connections = Connection::query()->with(['connectionStatus', 'property.customer.customerStatus']);
         if ($customerId !== null) {
@@ -45,8 +45,7 @@ final class BillingService
             $amount = null;
             if ($existing !== null) {
                 $reason = 'La cuota ya existe; no se duplicará.';
-            } elseif ($billingPeriod === null) {
-                $reason = 'Falta el ciclo de pago configurado.';
+
             } elseif (! in_array($connection->connectionStatus?->name, ['ACTIVE', 'ACTIVO'], true)) {
                 $reason = 'La conexión no está activa.';
             } elseif (! $connection->property?->active) {
@@ -93,18 +92,21 @@ final class BillingService
             $summary = $this->previewForMonth($month, $customerId);
             $periodStart = Carbon::parse($month)->startOfMonth();
             $periodEnd = $periodStart->copy()->endOfMonth();
-            $billingPeriod = BillingPeriod::query()->where('months', $this->paymentFrequency())->first();
+            Setting::query()->where('key', 'billing_period_months')->lockForUpdate()->first();
+            $cycle = app(BillingCycleService::class)->forMonth($periodStart);
+            $billingPeriod = BillingPeriod::query()->firstOrCreate(['months' => $cycle['months']], ['description' => $cycle['months'].' meses']);
             $created = 0;
             $invoiceIds = [];
             foreach ($summary['rows'] as $row) {
                 if ($row['status'] !== 'ready') {
                     continue;
                 }
+                Connection::query()->whereKey($row['connection_id'])->lockForUpdate()->firstOrFail();
+                $snapshot = $this->cycleSnapshot($row['connection_id'], $periodStart, $cycle, $billingPeriod);
                 $invoice = Invoice::query()->firstOrCreate(
                     ['connection_id' => $row['connection_id'], 'period_starts_on' => $periodStart->toDateString()],
-                    ['billing_period_id' => $billingPeriod->id,
+                    $snapshot + [
                         'issued_on' => $this->issueDate($periodStart)->toDateString(),
-                        'due_on' => $this->graceDeadline($periodStart, (int) $billingPeriod->months)->toDateString(),
                         'period_ends_on' => $periodEnd->toDateString(), 'rate' => $row['amount'],
                         'late_fee' => 0, 'fines' => 0, 'total' => $row['amount'], 'status' => 'PENDING']);
                 if ($invoice->wasRecentlyCreated) {
@@ -121,7 +123,7 @@ final class BillingService
     {
         $months = (int) Setting::query()->where('key', 'billing_period_months')->value('value');
 
-        return in_array($months, [3, 6], true) ? $months : 3;
+        return $months > 0 ? $months : 3;
     }
 
     public function issueDay(): int
@@ -134,17 +136,30 @@ final class BillingService
     public function graceDeadline(CarbonInterface|string $month, ?int $frequency = null): Carbon
     {
         $periodStart = Carbon::parse($month)->startOfMonth();
-        $frequency ??= $this->paymentFrequency();
-        $frequency = in_array($frequency, [3, 6], true) ? $frequency : 3;
+        $cycle = $frequency === null
+            ? app(BillingCycleService::class)->forMonth($periodStart)
+            : app(BillingCycleService::class)->bounds($periodStart, max(1, $frequency));
+        $graceMonths = $this->activeLateFeeSetting($cycle['start'])?->grace_months ?? 1;
 
-        // Todas las cuotas del trimestre o semestre comparten el fin del ciclo.
-        // El periodo de gracia se agrega después de dicho fin, no después de
-        // cada mes individual (enero-marzo vence al terminar abril, por ejemplo).
-        $cycleEndMonth = (int) (intdiv($periodStart->month - 1, $frequency) * $frequency) + $frequency;
-        $cycleEnd = $periodStart->copy()->month($cycleEndMonth)->endOfMonth();
-        $graceMonths = $this->activeLateFeeSetting($periodStart)?->grace_months ?? 1;
+        return $cycle['end']->copy()->addMonthsNoOverflow((int) $graceMonths)->endOfMonth();
+    }
 
-        return $cycleEnd->addMonthsNoOverflow(max(1, (int) $graceMonths))->endOfMonth();
+    private function cycleSnapshot(int $connectionId, Carbon $month, array $cycle, BillingPeriod $period): array
+    {
+        $existing = Invoice::query()->where('connection_id', $connectionId)
+            ->whereDate('cycle_starts_on', '<=', $month)->whereDate('cycle_ends_on', '>=', $month)
+            ->orderBy('id')->first();
+        if ($existing) {
+            return $existing->only(['billing_period_id', 'cycle_starts_on', 'cycle_ends_on', 'due_on', 'late_fee_setting_id', 'cycle_late_fee_amount']);
+        }
+        $fee = $this->activeLateFeeSetting($cycle['start']);
+
+        return [
+            'billing_period_id' => $period->id,
+            'cycle_starts_on' => $cycle['start']->toDateString(), 'cycle_ends_on' => $cycle['end']->toDateString(),
+            'due_on' => $cycle['end']->copy()->addMonthsNoOverflow((int) ($fee?->grace_months ?? 1))->endOfMonth()->toDateString(),
+            'late_fee_setting_id' => $fee?->id, 'cycle_late_fee_amount' => $fee?->monthly_amount ?? 0,
+        ];
     }
 
     /**
@@ -158,6 +173,8 @@ final class BillingService
         Invoice::query()
             ->with('billingPeriod')
             ->whereNotNull('period_starts_on')
+            ->whereNull('cycle_starts_on')
+            ->where('status', 'PENDING')
             ->eachById(function (Invoice $invoice) use (&$updated): void {
                 $frequency = (int) ($invoice->billingPeriod?->months ?? $this->paymentFrequency());
                 $deadline = $this->graceDeadline($invoice->period_starts_on, $frequency);
