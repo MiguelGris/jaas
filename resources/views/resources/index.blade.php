@@ -25,6 +25,16 @@
         @endunless
     </div>
 
+    @if ($resource === 'audit-logs')
+        <form method="GET" class="mb-6 grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div><label for="audit-user" class="block font-semibold">Usuario</label><select id="audit-user" name="user_id" class="w-full"><option value="">Todos</option>@foreach($auditUsers as $user)<option value="{{ $user->id }}" @selected((string)($auditFilters['user_id'] ?? '') === (string)$user->id)>{{ $user->name }}</option>@endforeach</select></div>
+            <div><label for="audit-from" class="block font-semibold">Desde</label><input class="w-full" id="audit-from" type="date" name="from" value="{{ $auditFilters['from'] ?? '' }}"></div>
+            <div><label for="audit-to" class="block font-semibold">Hasta</label><input class="w-full" id="audit-to" type="date" name="to" value="{{ $auditFilters['to'] ?? '' }}"></div>
+            <div><label for="audit-q" class="block font-semibold">Módulo o registro</label><input class="w-full" id="audit-q" type="search" name="q" maxlength="100" value="{{ $auditFilters['q'] ?? '' }}" placeholder="Clientes, caja o número"></div>
+            <button class="self-end rounded-lg bg-sky-700 px-4 py-3 font-semibold text-white">Filtrar bitácora</button>
+        </form>
+        @if($errors->any())<p role="alert" class="mb-4 text-rose-700">{{ $errors->first() }}</p>@endif
+    @endif
     @if ($resource === 'invoices')
         @if (App\Support\ResourceAccess::isAdministrator(auth()->user()) || auth()->user()->role?->permissions->contains('name', 'rates.manage'))
             <div class="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4"><a href="{{ route('billing.index') }}" class="font-semibold text-sky-700">Revisar y generar cuotas →</a><p class="mt-2 text-sm">Selecciona el mes y revisa las causas de omisión antes de confirmar. Las cuotas existentes se conservan.</p></div>
@@ -61,6 +71,9 @@
         </form>
     @endif
 
+    @if (in_array($resource, ['invoices', 'payments', 'incomes']))
+        <p class="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">{{ match ($resource) { 'invoices' => 'Cuota: lo que el titular debe por el servicio de cada mes. Para cobrarla, usa Pagos.', 'payments' => 'Recibo: comprobante del dinero cobrado. Si necesitas corregir un pago, anúlalo con un motivo y registra el correcto.', default => 'Otros ingresos: dinero que no procede de cobrar cuotas o multas. Las cobranzas aparecen automáticamente en caja; no las vuelvas a registrar aquí.' } }}</p>
+    @endif
     @if ($resource === 'customers')
         <form method="GET" class="mb-6 flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-4">
             <label for="customer-search" class="w-full text-sm font-semibold">Buscar cliente por nombre, DNI, RUC o código</label>
@@ -79,9 +92,30 @@
             @empty<p class="rounded-xl bg-white p-4">No se encontraron clientes.</p>@endforelse
         </div>
     @endif
+    @if ($resource !== 'customers')
+        <div class="mb-4 space-y-3 md:hidden" aria-label="{{ $definition['label'] }} para teléfono">
+            @forelse($records as $record)
+                <article class="rounded-xl border bg-white p-4">
+                    @foreach($columns as $name => $field)
+                        @php
+                            $mobileValue = isset($field['relation']) ? data_get($record, $field['relation'].'.'.$field['options']['label']) : $record->getAttribute($name);
+                            if (isset($field['choices'])) $mobileValue = $field['choices'][$mobileValue] ?? $mobileValue;
+                            elseif (is_string($mobileValue)) $mobileValue = App\Http\Controllers\Web\JassPageController::catalogValueLabel($mobileValue);
+                            if ($field['type'] === 'number' && $mobileValue !== null) $mobileValue = $name === 'year' ? (string)(int)$mobileValue : number_format((float)$mobileValue, ($field['integer'] ?? false) ? 0 : 2);
+                            if ($resource === 'audit-logs' && $name === 'table_name') $mobileValue = $record->moduleLabel();
+                            if ($mobileValue instanceof DateTimeInterface) $mobileValue = $mobileValue->format('d/m/Y');
+                            if ($field['type'] === 'checkbox') $mobileValue = $mobileValue ? 'Sí' : 'No';
+                        @endphp
+                        <p class="mt-1 break-words text-sm"><span class="font-semibold">{{ $field['label'] }}:</span> {{ $mobileValue ?? '—' }}</p>
+                    @endforeach
+                    <a class="mt-3 inline-block rounded-lg bg-sky-50 px-4 py-3 font-semibold text-sky-700" href="{{ route('resources.show',['resource'=>$resource,'record'=>$record->id]) }}">Ver detalle y acciones</a>
+                </article>
+            @empty<p>No hay registros todavía.</p>@endforelse
+        </div>
+    @endif
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        @if ($resource === 'customers')<div class="hidden md:block">@endif
-        <div class="overflow-x-auto">
+        <div class="hidden md:block">
+        <div class="table-scroll overflow-x-auto" tabindex="0" role="region" aria-label="{{ $definition['label'] }}: tabla con desplazamiento horizontal">
             <table class="min-w-full divide-y divide-slate-100 text-left text-sm">
                 <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                     <tr>
@@ -105,6 +139,7 @@
                                     } elseif (is_string($value)) {
                                         $value = App\Http\Controllers\Web\JassPageController::catalogValueLabel($value);
                                     }
+                                    if ($resource === 'audit-logs' && $name === 'table_name') $value = $record->moduleLabel();
                                     if ($field['type'] === 'checkbox') {
                                         $value = $value ? 'Sí' : 'No';
                                     } elseif ($field['type'] === 'number' && $value !== null) {
@@ -145,7 +180,7 @@
                 </tbody>
             </table>
         </div>
-        @if ($resource === 'customers')</div>@endif
+        </div>
         @if ($records->hasPages())
             <div class="border-t border-slate-100 px-5 py-4">{{ $records->links() }}</div>
         @endif

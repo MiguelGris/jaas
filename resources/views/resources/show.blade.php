@@ -34,8 +34,8 @@
         <aside class="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4">
             <h3 class="font-bold">Continuar el alta del servicio</h3>
             <p class="mt-1 text-sm">1. Cliente → 2. Predio activo → 3. Conexión activa → 4. Uso y tarifa vigente.</p>
-            @if ($resource === 'customers')<a class="mt-3 inline-block rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white" href="{{ route('resources.create',['resource'=>'properties','customer_id'=>$record->id]) }}">Registrar predio de este cliente</a>
-            @elseif ($resource === 'properties')<a class="mt-3 inline-block rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white" href="{{ route('resources.create',['resource'=>'connections','property_id'=>$record->id]) }}">Registrar conexión en este predio</a>
+            @if ($resource === 'customers')<a class="mt-3 inline-block rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white" href="{{ route('resources.create',['resource'=>'properties','customer_id'=>$record->id]) }}">Continuar con su casa o local</a>
+            @elseif ($resource === 'properties')<a class="mt-3 inline-block rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white" href="{{ route('resources.create',['resource'=>'connections','property_id'=>$record->id]) }}">Continuar con la conexión</a>
             @else
                 <p class="mt-3 text-sm">Al registrar una conexión se asigna el uso residencial automáticamente. Revisa las fechas antes de cambiarlo.</p>
                 @foreach ($record->usageAssignments as $usage)<a class="mt-3 mr-4 inline-block font-semibold text-sky-700" href="{{ route('resources.edit',['resource'=>'connection-usage-types','record'=>$usage->id]) }}">Revisar uso existente →</a>@endforeach
@@ -43,6 +43,28 @@
             @endif
         </aside>
     @endif
+    @if ($resource === 'customers') @include('resources.customer-dossier') @endif
+    @if ($resource === 'connections' && App\Support\ResourceAccess::allows(auth()->user(), 'meters', 'create'))
+        <aside class="mb-6 rounded-xl border border-sky-200 bg-sky-50 p-4"><h3 class="font-bold">Completar este servicio</h3>
+        @if ($record->payment_mode === 'METERED')
+            <p class="mt-2 text-sm">Para facturar consumo necesitas un medidor, una lectura del mes y un precio por m³ en la tarifa.</p>
+            <a class="mt-3 inline-block rounded-lg bg-sky-700 px-4 py-3 font-semibold text-white" href="{{ route('resources.create',['resource'=>'meters','connection_id'=>$record->id]) }}">Registrar medidor</a>
+            @foreach ($record->meters as $meter)<a class="ml-3 inline-block py-3 font-semibold text-sky-700" href="{{ route('resources.create',['resource'=>'meter-readings','meter_id'=>$meter->id]) }}">Ingresar lectura de {{ $meter->meter_number }}</a>@endforeach
+        @endif
+        @if (App\Support\ResourceAccess::allows(auth()->user(), 'rates'))<a class="mt-3 ml-3 inline-block font-semibold text-sky-700" href="{{ route('resources.index',['resource'=>'rates']) }}">Revisar tarifa</a><a class="ml-3 font-semibold text-sky-700" href="{{ route('billing.index',['customer_id'=>$record->property->customer_id]) }}">Revisar cuotas</a>@endif
+        </aside>
+    @endif
+    @if ($resource === 'connections')
+        <details class="mb-6 rounded-xl border bg-white p-5"><summary class="cursor-pointer font-bold">Revisar fechas de instalación y uso</summary>
+            <p class="mt-3 text-sm">Paso 1: confirma la instalación ({{ $record->installed_on?->format('d/m/Y') ?? 'Sin fecha' }}). Paso 2: revisa las vigencias siguientes. Paso 3: revisa la emisión antes de confirmar cuotas. Los cobros y cuotas históricos se conservan.</p>
+            @foreach ($record->usageAssignments()->with('usageType')->orderBy('starts_on')->get() as $assignment)
+                <p class="mt-3 text-sm">{{ App\Support\CatalogLabel::value($assignment->usageType?->name ?? 'Uso') }} · {{ $assignment->starts_on->format('d/m/Y') }} a {{ $assignment->ends_on?->format('d/m/Y') ?? 'sin fecha final' }}
+                @if (App\Support\ResourceAccess::allows(auth()->user(), 'connection-usage-types', 'edit'))<a class="ml-2 font-semibold text-sky-700" href="{{ route('resources.edit', ['resource'=>'connection-usage-types','record'=>$assignment->id]) }}">Revisar esta vigencia</a>@endif</p>
+            @endforeach
+            @if (App\Support\ResourceAccess::allows(auth()->user(), 'rates'))<a class="mt-4 inline-block font-semibold text-sky-700" href="{{ route('billing.index', ['customer_id'=>$record->property->customer_id]) }}">Paso 3: revisar cuotas futuras</a>@endif
+        </details>
+    @endif
+    @if ($resource === 'meters' && App\Support\ResourceAccess::allows(auth()->user(), 'meter-readings', 'create'))<a class="mb-5 inline-block rounded-lg bg-sky-700 px-4 py-3 font-semibold text-white" href="{{ route('resources.create',['resource'=>'meter-readings','meter_id'=>$record->id]) }}">Ingresar lectura de este medidor</a>@endif
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <dl class="divide-y divide-slate-100">
             @foreach ($fields as $name => $field)
@@ -58,6 +80,9 @@
                     if ($field['type'] === 'checkbox') $value = $value ? 'Sí' : 'No';
                     elseif ($field['type'] === 'number' && $value !== null) $value = ($name === 'year' ? (string) (int) $value : number_format((float) $value, ($field['integer'] ?? false) ? 0 : 2));
                     elseif ($value instanceof DateTimeInterface) $value = match ($field['type']) { 'date' => $value->format('d/m/Y'), 'datetime-local' => $value->format('d/m/Y H:i'), default => $value->format('d/m/Y') };
+                    if ($resource === 'audit-logs' && $name === 'table_name') $value = $record->moduleLabel();
+                    if ($resource === 'cash-closings' && $name === 'month') $value = Carbon\Carbon::create((int)$record->year, (int)$record->month, 1)->translatedFormat('F Y');
+                    if ($resource === 'cash-closings' && in_array($name, ['total_income','total_expense','balance'])) $value = 'S/ '.number_format((float)$record->getAttribute($name), 2);
                     $isStructuredValue = is_array($value);
                     if ($isStructuredValue) $value = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
                 @endphp

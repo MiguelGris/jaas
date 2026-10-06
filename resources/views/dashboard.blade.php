@@ -148,106 +148,19 @@
             </section>
         </div>
 
-        <aside id="reportes" class="self-start rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
-            <h2 class="font-semibold text-slate-800">Reportes</h2>
-            <p class="mt-1 text-sm text-slate-500">Excel se descarga. PDF se abre en una nueva pestaña.</p>
-
-            <div class="mt-4 space-y-3">
-                <form id="reporte-flujo-caja" method="GET" action="{{ route('reports.download', ['report' => 'cash-flow', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
-                    <h3 class="text-sm font-semibold text-slate-800">Flujo de caja mensual</h3>
-                    <label class="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="cash-month">Mes</label>
-                    <input id="cash-month" type="month" name="month" value="{{ now()->format('Y-m') }}" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
-                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'cash-flow', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
-                </form>
-
-                <form id="reporte-balance-anual" method="GET" action="{{ route('reports.download', ['report' => 'annual-balance', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
-                    <h3 class="text-sm font-semibold text-slate-800">Balance anual</h3>
-                    <label class="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="balance-year">Año</label>
-                    <input id="balance-year" type="number" name="year" value="{{ now()->year }}" min="2000" max="2100" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
-                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'annual-balance', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
-                </form>
-
-                <form id="reporte-conceptos-mensual" method="GET" action="{{ route('reports.download', ['report' => 'payment-concepts-monthly', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
-                    <h3 class="text-sm font-semibold text-slate-800">Conceptos de pago mensuales</h3>
-                    <p class="mt-1 text-xs text-slate-500">Servicios, multas, moras, otros ingresos y egresos.</p>
-                    <label class="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="concept-month">Mes</label>
-                    <input id="concept-month" type="month" name="month" value="{{ now()->format('Y-m') }}" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
-                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'payment-concepts-monthly', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
-                </form>
-
-                <form id="reporte-conceptos-anual" method="GET" action="{{ route('reports.download', ['report' => 'payment-concepts-annual', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
-                    <h3 class="text-sm font-semibold text-slate-800">Conceptos de pago anuales</h3>
-                    <p class="mt-1 text-xs text-slate-500">Comparativo mensual por cada concepto.</p>
-                    <label class="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="concept-year">Año</label>
-                    <input id="concept-year" type="number" name="year" value="{{ now()->year }}" min="2000" max="2100" step="1" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
-                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'payment-concepts-annual', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
-                </form>
-
-                <form id="reporte-historial-pagos" method="GET" action="{{ route('reports.download', ['report' => 'customer-payment-history', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
-                    <h3 class="text-sm font-semibold text-slate-800">Historial de pagos por cliente</h3>
-                    <p class="mt-1 text-xs text-slate-500">Busca en el padrón y selecciona por código, DNI, RUC, nombre o razón social.</p>
-                    @include('reports._customer_selector', ['selectorId' => 'dashboard-payment-history-customer'])
-                    @include('reports._payment_history_period', ['periodId' => 'dashboard-payment-history-period'])
-                    <div class="mt-2 flex gap-2"><button type="submit" @disabled($reportCustomers->isEmpty()) class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'customer-payment-history', 'format' => 'pdf']) }}" formtarget="_blank" @disabled($reportCustomers->isEmpty()) class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50">Ver PDF</button></div>
-                </form>
-
-                <form id="reporte-morosos" method="GET" action="{{ route('reports.download', ['report' => 'debtors', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
-                    <h3 class="text-sm font-semibold text-slate-800">Lista de morosos</h3>
-                    <p class="mt-1 text-xs text-slate-500">Solo cuotas vencidas y multas pendientes por titular.</p>
-                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'debtors', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
-                </form>
-
-                <form id="reporte-antiguedad-deuda" method="GET" action="{{ route('reports.download', ['report' => 'debt-aging', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
-                    <h3 class="text-sm font-semibold text-slate-800">Antigüedad de deuda</h3>
-                    <p class="mt-1 text-xs text-slate-500">Clasifica la morosidad en 0–30, 31–60, 61–90 y más de 90 días.</p>
-                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'debt-aging', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
-                </form>
-
-                <form id="reporte-medios-pago" method="GET" action="{{ route('reports.download', ['report' => 'payment-methods', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
-                    <h3 class="text-sm font-semibold text-slate-800">Recaudación por medio de pago</h3>
-                    <label class="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="payment-method-month">Mes</label>
-                    <input id="payment-method-month" type="month" name="month" value="{{ now()->format('Y-m') }}" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
-                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'payment-methods', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
-                </form>
-
-                <form id="reporte-padron-conexiones" method="GET" action="{{ route('reports.download', ['report' => 'service-register', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
-                    <h3 class="text-sm font-semibold text-slate-800">Padrón de conexiones</h3>
-                    <p class="mt-1 text-xs text-slate-500">Clientes, predios, servicios, modalidad de cobro y medidores.</p>
-                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'service-register', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
-                </form>
-
-                @if ($assemblies->isNotEmpty())
-                    <form id="reporte-asistencias" method="GET" action="{{ route('reports.download', ['report' => 'attendance', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
-                        <h3 class="text-sm font-semibold text-slate-800">Asistencias a asambleas</h3>
-                        @php
-                            $dashboardAssemblyOptions = $assemblies->mapWithKeys(fn ($assembly) => [
-                                $assembly->id => $assembly->assembly_code.' · '.$assembly->held_on->format('d/m/Y').' · '.($assembly->place ?: 'Sin lugar'),
-                            ])->all();
-                            $searchDashboardAssemblies = count($dashboardAssemblyOptions) > 20;
-                        @endphp
-                        <label class="mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="{{ $searchDashboardAssemblies ? 'dashboard-report-assembly-search' : 'dashboard-report-assembly' }}">Asamblea</label>
-                        <div class="mt-1">
-                            @include('adaptive-select', [
-                                'name' => 'assembly_id',
-                                'selectId' => 'dashboard-report-assembly',
-                                'searchId' => 'dashboard-report-assembly-search',
-                                'options' => $dashboardAssemblyOptions,
-                                'required' => true,
-                                'placeholder' => $searchDashboardAssemblies ? 'Código, fecha o lugar' : 'Selecciona una asamblea',
-                            ])
-                        </div>
-                        <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'attendance', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
-                    </form>
-                @else
-                    <div id="reporte-asistencias" class="scroll-mt-6 rounded-lg border border-dashed border-slate-300 p-3.5 text-xs text-slate-500">Registra una asamblea para generar su lista de asistencias.</div>
-                @endif
-
-                <form id="reporte-exonerados" method="GET" action="{{ route('reports.download', ['report' => 'work-exemptions', 'format' => 'xlsx']) }}" class="scroll-mt-6 rounded-lg border border-slate-200 p-3">
-                    <h3 class="text-sm font-semibold text-slate-800">Exonerados de faenas</h3>
-                    <p class="mt-1 text-xs text-slate-500">Titulares activos con {{ $reports->workExemptionAge() }} años o más. Puedes ajustar la edad desde Administración → Configuraciones.</p>
-                    <div class="mt-2 flex gap-2"><button type="submit" class="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'work-exemptions', 'format' => 'pdf']) }}" formtarget="_blank" class="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
-                </form>
-            </div>
+        <aside id="reportes" class="self-start rounded-xl border border-slate-200 bg-white p-5">
+            <h2 class="font-bold">Tu trabajo de hoy</h2>
+            @if ($billingReminder)
+                <div role="status" class="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">
+                @if (isset($billingReminder['message'])){{ $billingReminder['message'] }}
+                @else<strong>Facturación {{ $billingReminder['month'] }}</strong><p class="mt-2">{{ $billingReminder['ready'] }} cuotas por emitir · {{ $billingReminder['existing'] }} emitidas · {{ $billingReminder['omitted'] }} servicios omitidos.</p><p class="mt-2">{{ $billingReminder['missing_readings'] }} servicios necesitan lecturas del medidor.</p>@endif
+                </div>
+            @endif
+            @if ($canUse('payments.create'))<p class="mt-3 text-sm">Busca al titular, elige las deudas y revisa el importe antes de emitir el recibo.</p>@endif
+            @if ($canUse('services.manage'))<p class="mt-3 text-sm">Completa las conexiones y registra las lecturas del mes antes de facturar.</p><a class="mt-3 block font-semibold text-sky-700" href="{{ route('resources.index',['resource'=>'meter-readings']) }}">Revisar lecturas →</a>@endif
+            @if ($canUse('rates.manage'))<p class="mt-3 text-sm">Revisa los servicios que están listos y los que necesitan datos para emitir cuotas.</p><a class="mt-3 block font-semibold text-sky-700" href="{{ route('billing.index') }}">Revisar facturación del mes →</a>@endif
+            @if ($canUse('audit.view'))<p class="mt-3 text-sm">Consulta quién hizo cada cambio y revisa los reportes del periodo.</p>@endif
+            <h3 class="mt-5 font-bold">Reportes</h3><p class="mt-2 text-sm">Elige el periodo y descarga Excel o PDF desde el centro de reportes.</p><a class="mt-3 inline-block rounded-lg bg-sky-700 px-4 py-3 font-semibold text-white" href="{{ route('reports.index') }}">Abrir centro de reportes</a>
         </aside>
     </div>
 @endsection

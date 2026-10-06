@@ -5,10 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'Panel') · JASS</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="stylesheet" href="{{ asset('css/ux.css') }}">
 </head>
 <body class="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
+    <a href="#main-content" class="skip-link">Saltar al contenido</a>
     <div class="min-h-screen lg:grid lg:grid-cols-[17rem_1fr]">
-        <aside class="border-b border-slate-200 bg-slate-950 text-slate-300 lg:min-h-screen lg:border-b-0 lg:border-r lg:border-slate-800">
+        <aside class="app-sidebar border-b border-slate-200 bg-slate-950 text-slate-300 lg:min-h-screen lg:border-b-0 lg:border-r lg:border-slate-800">
             <div class="flex items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
                 <div class="flex min-w-0 items-center gap-3">
                     <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-sky-500 font-black text-white shadow-lg shadow-sky-950/40">J</div>
@@ -22,8 +24,8 @@
                 </button>
             </div>
 
-            <nav id="sidebar-navigation" class="hidden max-h-[calc(100vh-4.5rem)] overflow-y-auto px-3 pb-6 lg:block lg:max-h-[calc(100vh-5rem)]">
-                <a href="{{ route('dashboard') }}" @class([
+            <nav data-user-id="{{ auth()->id() }}" id="sidebar-navigation" aria-label="Navegación principal" class="hidden max-h-[calc(100vh-4.5rem)] overflow-y-auto px-3 pb-6 lg:block lg:max-h-[calc(100vh-5rem)]">
+                <a href="{{ route('dashboard') }}" @if(request()->routeIs('dashboard')) aria-current="page" @endif @class([
                     'mb-3 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
                     'bg-sky-500 text-white shadow-sm' => request()->routeIs('dashboard'),
                     'text-slate-300 hover:bg-slate-800 hover:text-white' => !request()->routeIs('dashboard'),
@@ -31,6 +33,7 @@
                     <span aria-hidden="true">⌂</span> Panel principal
                 </a>
 
+<section id="favorite-navigation" class="mb-4" hidden><h2 class="px-3 py-2 text-sm font-bold text-white">Mis favoritos</h2><div id="favorite-links"></div></section>
                 @foreach ($navigation as $group)
                     @php
                         $group['items'] = array_filter($group['items'], fn ($item) => App\Support\ResourceAccess::allowsNavigation(auth()->user(), $item));
@@ -56,7 +59,7 @@
                                         ? request()->route('resource') === $resource || ($resource === 'settings' && request()->routeIs('settings.mora.*'))
                                         : isset($item['active']) && request()->routeIs($item['active']);
                                 @endphp
-                                <a href="{{ $href }}" @class([
+                                <a data-favorite-link href="{{ $href }}" @if($isActive) aria-current="page" @endif @class([
                                     'block rounded-lg px-3 py-2 text-sm transition',
                                     'bg-slate-800 font-medium text-white' => $isActive,
                                     'text-slate-400 hover:bg-slate-900 hover:text-white' => ! $isActive,
@@ -85,11 +88,10 @@
                             <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit" class="block w-full px-4 py-2.5 text-left font-medium text-rose-700 transition hover:bg-rose-50">Cerrar sesión</button></form>
                         </div>
                     </details>
-                    <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit" class="flex size-9 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-600 transition hover:bg-slate-200" title="Cerrar sesión">↗</button></form>
                 </div>
             </header>
 
-            <main class="mx-auto w-full max-w-7xl p-4 sm:p-8">
+            <main id="main-content" tabindex="-1" class="mx-auto w-full max-w-7xl p-4 sm:p-8">
                 @if (session('success'))
                     <div class="mb-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">
                         <span class="font-bold">✓</span><span>{{ session('success') }}</span>
@@ -102,6 +104,7 @@
                     </div>
                 @endif
 
+                @if(config('jass.training_mode') && app()->environment('local', 'testing'))<aside role="status" class="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 font-semibold">Modo de capacitación · Entorno local. Los cambios se guardan en la base configurada para esta instalación. Usa una base separada de pruebas.</aside>@endif
                 @yield('content')
             </main>
         </div>
@@ -118,6 +121,13 @@
                 const opening = navigation.classList.contains('hidden');
                 navigation.classList.toggle('hidden');
                 menuToggle.setAttribute('aria-expanded', String(opening));
+            });
+            navigation.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && window.matchMedia('(max-width: 1023px)').matches) {
+                    navigation.classList.add('hidden');
+                    menuToggle?.setAttribute('aria-expanded', 'false');
+                    menuToggle?.focus();
+                }
             });
 
             try {
@@ -146,6 +156,7 @@
             }
         })();
     </script>
+    <script src="{{ asset('js/usability.js') }}" defer></script>
     @stack('scripts')
 </body>
 </html>

@@ -6,13 +6,13 @@ La interfaz está en español, es adaptable a computadoras y teléfonos, y está
 
 ## Funcionalidades implementadas
 
-- Consulta pública de deuda mediante DNI de 8 dígitos.
+- Consulta pública de deuda mediante DNI de 8 dígitos o RUC de 11 dígitos.
 - Gestión de clientes, predios, conexiones y tipos de uso.
 - Modalidad de pago fijo o con medidor por conexión; pago fijo es el valor predeterminado.
 - Registro y validación de medidores y lecturas de consumo.
 - Tarifas anuales para cuota fija y precio por metro cúbico.
 - Generación mensual automática e idempotente de cuotas fijas y por consumo medido; revisión y emisión manual desde la web con diagnóstico por conexión.
-- Ciclos obligatorios trimestrales o semestrales, con periodo de gracia configurable.
+- Ciclos de pago configurables en meses enteros positivos, con periodo de gracia configurable.
 - Cálculo de mora mensual después del vencimiento.
 - Cobranza por DNI, nombres o apellidos, seleccionando cuotas y multas.
 - Recibos de pago de 58 mm, número de operación automático y anulación controlada.
@@ -107,3 +107,13 @@ La gestión de medidores y lecturas y su facturación mensual están implementad
 - No publiques el archivo `.env` ni respaldos de la base de datos.
 - Programa respaldos antes de migraciones y actualizaciones.
 - No elimines pagos: utiliza la opción **Anular**, que conserva la trazabilidad y reabre las deudas relacionadas.
+
+### Operación y capacitación
+
+El alta continúa desde la ficha del titular hacia predio y conexión, conservando cada paso. El panel muestra tareas según los permisos, recordatorios de cuotas y lecturas pendientes y un acceso al centro de reportes. Las estrellas del menú guardan favoritos por usuario en el navegador.
+
+Facturación permite revisar un mes o todo su ciclo antes de generar las cuotas faltantes. La emisión del ciclo admite hasta 24 meses por operación; los ciclos mayores se emiten mes a mes. Se conserva el cobro completo de los cargos elegidos. La referencia de Yape, Plin o banco es opcional y distinta de la operación interna.
+
+Para capacitación, utiliza una copia con una base separada y `JASS_TRAINING_MODE=true`, con `APP_ENV=local`. El indicador identifica esa instalación; no crea ni separa la base automáticamente. Mantén desactivado el modo en la instalación operativa.
+
+En una instalación existente ejecuta `php artisan migrate` y `npm run build`. No uses `migrate:fresh` para actualizar: elimina los datos. Las vistas antiguas de deuda y el procedimiento antiguo de multas se retiran; las reglas vigentes se calculan en los servicios Laravel. Para el diagnóstico `artisan db:show` instala o habilita `intl` en el PHP utilizado; en XAMPP puede comprobarse con `php -d extension=php_intl.dll artisan db:show`.

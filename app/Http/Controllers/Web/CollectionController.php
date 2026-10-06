@@ -49,6 +49,7 @@ final class CollectionController extends Controller
             'fines.*' => ['integer', 'distinct', 'exists:fines,id'],
             'payment_method_id' => ['required', 'integer', 'exists:payment_methods,id'],
             'notes' => ['nullable', 'string', 'max:250'],
+            'external_reference' => ['nullable', 'string', 'max:100'],
         ]);
 
         $customer = Customer::query()->findOrFail($data['customer_id']);

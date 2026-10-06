@@ -43,7 +43,7 @@ La generación mensual actual procesa únicamente conexiones que cumplan todo lo
 - Fecha de instalación anterior o dentro del mes facturado; no se cobra un mes anterior al mes de instalación.
 - Asignación de tipo de uso vigente durante el mes.
 - Tarifa vigente para ese tipo de uso y año.
-- Existencia del ciclo de pago configurado, de 3 o 6 meses.
+- Existencia del ciclo de pago configurado.
 - Para `METERED`: precio por m³ y lecturas del mes. Se suman los consumos registrados, incluidos cambios de medidor.
 
 Existe una restricción única por conexión y mes. Por eso ejecutar dos veces la generación para el mismo periodo no duplica la cuota.
@@ -64,10 +64,11 @@ php artisan billing:generate-monthly --month=AAAA-MM
 
 El comando manual es idempotente. Resulta útil para recuperar un mes cuando el servidor no estuvo activo el día de emisión.
 
-## 5. Ciclos trimestrales y semestrales
+## 5. Ciclos de pago configurables
 
 La clave `billing_period_months` acepta:
 
+- Cualquier entero positivo dentro del calendario admitido. Por ejemplo `1`, `4` u `8`.
 - `3`: ciclo trimestral.
 - `6`: ciclo semestral.
 

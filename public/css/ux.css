@@ -1,0 +1,54 @@
+/* Shared interface layer, loaded after the compiled Tailwind bundle. */
+:root { --jass-accent: #0369a1; --jass-border: #cbd5e1; }
+html { scroll-padding-top: 2rem; }
+body { background: #f4f7fb; }
+:where(a, button, input, select, textarea, summary):focus-visible {
+    outline: 3px solid var(--jass-accent);
+    outline-offset: 3px;
+}
+.skip-link {
+    position: fixed; top: 1rem; left: 1rem; z-index: 100;
+    transform: translateY(-200%); padding: .75rem 1rem;
+    border-radius: .75rem; background: #fff; color: #075985;
+    font-weight: 700; box-shadow: 0 4px 20px #0f172a26;
+}
+.skip-link:focus { transform: translateY(0); }
+/* Tailwind preflight resets borders and spacing; controls need explicit defaults. */
+:where(input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=submit]):not([type=button]):not([type=file]), select, textarea) {
+    min-height: 44px; padding: .625rem .75rem;
+    border: 1px solid var(--jass-border); background-color: #fff;
+    color: #0f172a; border-radius: .5rem; max-width: 100%;
+}
+textarea { min-height: 100px; }
+input::placeholder, textarea::placeholder { color: #64748b; opacity: 1; }
+input[type=checkbox], input[type=radio] { width: 1.125rem; height: 1.125rem; accent-color: var(--jass-accent); }
+:where(input, select, textarea)[aria-invalid=true] { border-color: #be123c; background-color: #fff1f2; }
+:where(input, select, textarea):disabled { background: #f1f5f9; color: #64748b; cursor: not-allowed; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+.text-slate-400 { color: #64748b; }
+#sidebar-navigation .text-slate-400 { color: #b1bfd1; }
+#sidebar-navigation summary { color: #cbd5e1; min-height: 44px; font-size: .9375rem; line-height: 1.25rem; font-weight: 700; }
+#sidebar-navigation a[aria-current=page] { box-shadow: inset 3px 0 #38bdf8; }
+#sidebar-navigation summary::-webkit-details-marker { display: none; }
+.table-scroll { position: relative; }
+.table-scroll:focus-visible { outline-offset: -3px; }
+table th { color: #475569; }
+table td { vertical-align: middle; }
+.public-surface { min-height: 100vh; display: flex; flex-direction: column; }
+.public-surface main { flex: 1; }
+.public-surface footer { margin-top: 0; }
+.password-field { position: relative; }
+.password-field input { padding-right: 5.5rem; }
+.password-toggle { position: absolute; right: .25rem; top: .25rem; min-height: 36px; padding: .375rem .75rem; border-radius: .375rem; color: #0369a1; font-size: .875rem; font-weight: 600; }
+.password-toggle:hover { background: #f0f9ff; }
+@media (min-width: 1024px) {
+    .app-sidebar { position: sticky; top: 0; height: 100vh; align-self: start; }
+}
+@media (max-width: 639px) {
+    :where(input, select, textarea) { font-size: 16px; }
+    main button[type=submit], main a[class*=rounded] { min-height: 44px; }
+    table th, table td { padding-left: 1rem; padding-right: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; animation-duration: 0s !important; }
+}

@@ -36,6 +36,7 @@ use App\Models\UsageType;
 use App\Models\User;
 use App\Services\AuditService;
 use App\Services\BillingCycleService;
+use App\Services\BillingService;
 use App\Services\CashService;
 use App\Services\DebtService;
 use App\Services\LateFeeVersionService;
@@ -178,7 +179,18 @@ final class JassPageController extends Controller
             ->orderBy('first_name')
             ->get(['id', 'customer_code', 'customer_type', 'national_id', 'first_name', 'last_name', 'business_name']);
 
-        return view('dashboard', compact('metrics', 'financialMetrics', 'movements', 'recentInvoices', 'assemblies', 'reportCustomers', 'reports'));
+        $billingReminder = null;
+        if (ResourceAccess::allows(auth()->user(), 'meters') || ResourceAccess::allows(auth()->user(), 'rates')) {
+            try {
+                $preview = app(BillingService::class)->previewForMonth($today);
+                $billingReminder = ['month' => $today->format('m/Y'), 'ready' => $preview['ready'], 'existing' => $preview['existing'], 'omitted' => $preview['omitted'],
+                    'missing_readings' => collect($preview['rows'])->filter(fn ($row) => str_contains($row['reason'] ?? '', 'lecturas'))->count()];
+            } catch (ValidationException $exception) {
+                $billingReminder = ['message' => collect($exception->errors())->flatten()->first()];
+            }
+        }
+
+        return view('dashboard', compact('metrics', 'financialMetrics', 'movements', 'recentInvoices', 'assemblies', 'reportCustomers', 'reports', 'billingReminder'));
     }
 
     public function index(Request $request, string $resource): View|RedirectResponse
@@ -270,12 +282,32 @@ final class JassPageController extends Controller
             }
         }
 
+        $auditFilters = [];
+        $auditUsers = collect();
+        if ($resource === 'audit-logs') {
+            $auditFilters = $request->validate(['user_id' => ['nullable', 'integer', 'exists:users,id'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'q' => ['nullable', 'string', 'max:100']]);
+            $auditUsers = User::query()->orderBy('name')->get(['id', 'name']);
+            if (! empty($auditFilters['user_id'])) {
+                $records->where('user_id', $auditFilters['user_id']);
+            }
+            if (! empty($auditFilters['from'])) {
+                $records->whereDate('occurred_at', '>=', $auditFilters['from']);
+            }
+            if (! empty($auditFilters['to'])) {
+                $records->whereDate('occurred_at', '<=', $auditFilters['to']);
+            }
+            if (! empty($auditFilters['q'])) {
+                $term = $auditFilters['q'];
+                $tables = collect(self::definitions())->filter(fn ($d) => str_contains(mb_strtolower($d['label']), mb_strtolower($term)))->map(fn ($d) => (new $d['model'])->getTable())->values()->all();
+                $records->where(fn ($q) => $q->where('table_name', 'like', '%'.$term.'%')->orWhereIn('table_name', $tables)->orWhere('record_id', $term));
+            }
+        }
         $records = $records
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
 
-        return view('resources.index', compact('resource', 'definition', 'columns', 'records', 'paymentFilters', 'invoiceState', 'customerSearch'));
+        return view('resources.index', compact('resource', 'definition', 'columns', 'records', 'paymentFilters', 'invoiceState', 'customerSearch', 'auditFilters', 'auditUsers'));
     }
 
     public function create(Request $request, string $resource): View
@@ -306,14 +338,24 @@ final class JassPageController extends Controller
             return view('cash-closings.create', compact('resource', 'definition', 'period', 'summary', 'previewErrors'));
         }
 
-        foreach (['properties' => 'customer_id', 'connections' => 'property_id', 'connection-usage-types' => 'connection_id'] as $step => $parent) {
+        foreach (['properties' => 'customer_id', 'connections' => 'property_id', 'connection-usage-types' => 'connection_id', 'meters' => 'connection_id', 'meter-readings' => 'meter_id'] as $step => $parent) {
             if ($resource === $step && $request->filled($parent)) {
                 $table = match ($parent) {
-                    'customer_id' => 'customers', 'property_id' => 'properties', default => 'connections'
+                    'customer_id' => 'customers', 'property_id' => 'properties', 'meter_id' => 'meters', default => 'connections'
                 };
                 $data = $request->validate([$parent => ['integer', 'exists:'.$table.',id']]);
                 $definition['fields'][$parent]['default'] = $data[$parent];
             }
+        }
+
+        if ($resource === 'customers') {
+            $definition['fields']['registered_on']['default'] = today()->toDateString();
+        }
+        if ($resource === 'connections' || $resource === 'meters') {
+            $definition['fields']['installed_on']['default'] = today()->toDateString();
+        }
+        if ($resource === 'meter-readings') {
+            $definition['fields']['read_on']['default'] = today()->toDateString();
         }
 
         return view('resources.form', [
@@ -372,9 +414,11 @@ final class JassPageController extends Controller
             $audit->created($request->user(), $record);
         }
 
-        return redirect()
-            ->route('resources.index', ['resource' => $resource === 'late-fee-settings' ? 'settings' : $resource])
-            ->with('success', 'Se registró correctamente: '.$definition['singular'].'.');
+        $next = in_array($resource, ['customers', 'properties', 'connections', 'meters'], true)
+            ? redirect()->route('resources.show', ['resource' => $resource, 'record' => $record->getKey()])
+            : redirect()->route('resources.index', ['resource' => $resource === 'late-fee-settings' ? 'settings' : $resource]);
+
+        return $next->with('success', 'Se registró correctamente: '.$definition['singular'].'.');
     }
 
     public function show(string $resource, string $record): View
@@ -387,12 +431,19 @@ final class JassPageController extends Controller
             $paymentConcepts = app(PaymentConceptService::class)->forPayment($model);
         }
 
+        $customerCharges = $model instanceof Customer ? app(DebtService::class)->pendingForCustomer($model) : null;
+        $customerPayments = $model instanceof Customer ? Payment::query()->where('customer_id', $model->id)->latest('paid_at')->limit(5)->get() : collect();
+        if ($model instanceof Customer) {
+            $model->load('properties.connections.meters');
+        }
+
         return view('resources.show', [
             'resource' => $resource,
             'definition' => $definition,
             'record' => $model,
             'fields' => $definition['fields'],
             'paymentConcepts' => $paymentConcepts,
+            'customerCharges' => $customerCharges, 'customerPayments' => $customerPayments,
         ]);
     }
 
@@ -903,7 +954,7 @@ final class JassPageController extends Controller
     /**
      * @return array<string, array<string, mixed>>
      */
-    private static function definitions(): array
+    public static function definitions(): array
     {
         return [
             'customers' => self::resource('Clientes', 'Cliente', Customer::class, [
@@ -1004,6 +1055,7 @@ final class JassPageController extends Controller
                 'payment_method_id' => self::select('Método de pago', PaymentMethod::class, 'paymentMethod'),
                 'source' => self::choice('Origen', ['COUNTER' => 'Ventanilla', 'WEB' => 'Web']),
                 'user_id' => self::select('Registrado por', User::class, 'user', false, 'name'),
+                'external_reference' => self::field('Referencia de la transferencia', 'text', false, ['readonly' => true]),
                 'operation_number' => self::text('Número de operación', false, 100),
                 'notes' => self::textarea('Observaciones', false),
                 'status' => self::choice('Estado', [Payment::STATUS_ACTIVE => 'Válido', Payment::STATUS_VOIDED => 'Anulado']),
@@ -1095,13 +1147,14 @@ final class JassPageController extends Controller
             ], ['key', 'value', 'description']),
             'audit-logs' => self::resource('Bitácora de auditoría', 'Evento de auditoría', AuditLog::class, [
                 'user_id' => self::select('Usuario', User::class, 'user', false, 'name'),
-                'table_name' => self::text('Tabla', true, 100),
+                'table_name' => self::text('Módulo', true, 100),
+                'summary_text' => self::text('Resumen', false, 250),
                 'record_id' => array_merge(self::number('ID del registro', true, 1), ['integer' => true]),
                 'action' => self::choice('Acción', ['INSERT' => 'Creación', 'UPDATE' => 'Actualización', 'DELETE' => 'Eliminación']),
                 'old_values' => self::textarea('Valores anteriores', false),
                 'new_values' => self::textarea('Valores nuevos', false),
                 'occurred_at' => self::datetime('Fecha y hora'),
-            ], ['user_id', 'table_name', 'record_id', 'action', 'occurred_at'], true),
+            ], ['user_id', 'table_name', 'summary_text', 'record_id', 'action', 'occurred_at'], true),
         ];
     }
 

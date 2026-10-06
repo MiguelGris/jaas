@@ -32,7 +32,7 @@ class BusinessCustomerTest extends TestCase
             'registered_on' => '2026-10-02',
         ]);
 
-        $response->assertRedirect(route('resources.index', ['resource' => 'customers']));
+        $response->assertRedirect(route('resources.show', ['resource' => 'customers', 'record' => Customer::query()->latest('id')->firstOrFail()->id]));
         $this->assertDatabaseHas('customers', [
             'customer_type' => Customer::TYPE_BUSINESS,
             'national_id' => '20123456789',

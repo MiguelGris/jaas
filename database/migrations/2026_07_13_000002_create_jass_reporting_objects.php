@@ -12,7 +12,7 @@ return new class extends Migration
         }
 
         DB::unprepared(<<<'SQL'
-            CREATE VIEW vw_customer_account AS
+            CREATE OR REPLACE VIEW vw_customer_account AS
             SELECT
                 customers.id AS customer_id,
                 CONCAT(customers.first_name, ' ', customers.last_name) AS customer,
@@ -26,21 +26,21 @@ return new class extends Migration
         SQL);
 
         DB::unprepared(<<<'SQL'
-            CREATE VIEW vw_monthly_incomes AS
+            CREATE OR REPLACE VIEW vw_monthly_incomes AS
             SELECT YEAR(received_on) AS year, MONTH(received_on) AS month, SUM(amount) AS total
             FROM incomes
             GROUP BY YEAR(received_on), MONTH(received_on)
         SQL);
 
         DB::unprepared(<<<'SQL'
-            CREATE VIEW vw_monthly_expenses AS
+            CREATE OR REPLACE VIEW vw_monthly_expenses AS
             SELECT YEAR(incurred_on) AS year, MONTH(incurred_on) AS month, SUM(amount) AS total
             FROM expenses
             GROUP BY YEAR(incurred_on), MONTH(incurred_on)
         SQL);
 
         DB::unprepared(<<<'SQL'
-            CREATE VIEW vw_delinq_customers AS
+            CREATE OR REPLACE VIEW vw_delinq_customers AS
             SELECT
                 customers.id AS customer_id,
                 CONCAT(customers.first_name, ' ', customers.last_name) AS customer,
@@ -54,6 +54,7 @@ return new class extends Migration
             GROUP BY customers.id, customers.first_name, customers.last_name
         SQL);
 
+        DB::unprepared('DROP PROCEDURE IF EXISTS generate_assembly_fines');
         DB::unprepared(<<<'SQL'
             CREATE PROCEDURE generate_assembly_fines(IN target_assembly_id BIGINT)
             BEGIN

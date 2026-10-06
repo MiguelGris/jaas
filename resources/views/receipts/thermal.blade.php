@@ -56,6 +56,7 @@
         <div class="data"><span>Medio de pago</span><span>{{ App\Support\CatalogLabel::value($payment->paymentMethod?->name ?? '—') }}</span></div>
         @if ($payment->operation_number)<div class="data"><span>Operación</span><span>{{ $payment->operation_number }}</span></div>@endif
 
+        @if ($payment->external_reference)<p class="muted">Referencia de transferencia: {{ $payment->external_reference }}</p>@endif
         <hr class="divider">
         <table>
             <thead><tr><th>Concepto</th><th>Importe</th></tr></thead>

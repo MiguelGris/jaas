@@ -57,6 +57,23 @@ class BillingCycleMoraTest extends TestCase
         return [$user, $customers, $fee, $method];
     }
 
+    public function test_cycle_preview_and_generation_are_complete_and_idempotent(): void
+    {
+        [$user] = $this->context(2);
+        $this->actingAs($user)->get(route('billing.index', ['month' => '2026-02', 'scope' => 'cycle']))
+            ->assertOk()->assertViewHas('summary', fn ($summary) => $summary['ready'] === 6 && count($summary['rows']) === 6);
+        $this->assertDatabaseCount('invoices', 0);
+        $data = ['month' => '2026-02', 'scope' => 'cycle', 'reason' => 'Emisión del primer ciclo'];
+        $this->post(route('billing.store'), $data)->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('invoices', 6);
+        $this->assertSame(['2026-01', '2026-02', '2026-03'], Invoice::query()->orderBy('period_starts_on')->get()->map(fn ($invoice) => $invoice->period_starts_on->format('Y-m'))->unique()->values()->all());
+        $this->post(route('billing.store'), $data)->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('invoices', 6);
+        $customer = Customer::query()->firstOrFail();
+        $this->get(route('resources.show', ['resource' => 'customers', 'record' => $customer->id]))->assertOk()->assertSee('Ficha del titular')->assertSee('Deuda pendiente');
+        $this->get(route('resources.index', ['resource' => 'audit-logs', 'q' => 'Cuotas']))->assertOk()->assertViewHas('records', fn ($records) => $records->total() === 6 && $records->every(fn ($record) => $record->table_name === 'invoices'));
+    }
+
     public static function durations(): array
     {
         return [[1], [4], [8], [5], [13]];

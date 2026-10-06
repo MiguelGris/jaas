@@ -52,7 +52,7 @@
         </tbody>
     </table>
     @if ($report['summary'] !== [])
-        <table class="summary"><tbody>@foreach ($report['summary'] as $label => $value)<tr><td>{{ $label }}</td><td>@if (str_contains(Str::lower($label), 'deuda') || str_contains(Str::lower($label), 'cobros') || str_contains(Str::lower($label), 'ingresos') || str_contains(Str::lower($label), 'egresos') || str_contains(Str::lower($label), 'saldo'))S/ {{ number_format((float) $value, 2) }}@else{{ $value }}@endif</td></tr>@endforeach</tbody></table>
+        <table class="summary"><tbody>@foreach ($report['summary'] as $label => $value)<tr><td>{{ $label }}</td><td>@if (str_contains(Str::lower($label), 'recaudación') || str_contains(Str::lower($label), 'entradas') || str_contains(Str::lower($label), 'deuda') || str_contains(Str::lower($label), 'cobros') || str_contains(Str::lower($label), 'ingresos') || str_contains(Str::lower($label), 'egresos') || str_contains(Str::lower($label), 'saldo'))S/ {{ number_format((float) $value, 2) }}@else{{ $value }}@endif</td></tr>@endforeach</tbody></table>
     @endif
 </body>
 </html>

@@ -97,7 +97,7 @@ final class ReportController extends Controller
             $sheet->getStyle("A{$headerRow}:".Coordinate::stringFromColumnIndex(count($table['headers'])).$headerRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('0284C7');
 
             if ($table['rows'] !== []) {
-                $sheet->fromArray($table['rows'], null, 'A'.($headerRow + 1));
+                $sheet->fromArray($table['rows'], null, 'A'.($headerRow + 1), true);
             }
 
             $currentRow = $headerRow + max(1, count($table['rows'])) + 2;
@@ -116,7 +116,7 @@ final class ReportController extends Controller
         $sheet->fromArray([$document['headers']], null, "A{$mainHeaderRow}");
 
         if ($document['rows'] !== []) {
-            $sheet->fromArray($document['rows'], null, "A{$mainDataRow}");
+            $sheet->fromArray($document['rows'], null, "A{$mainDataRow}", true);
         }
 
         $summaryRow = $mainDataRow + count($document['rows']) + 2;

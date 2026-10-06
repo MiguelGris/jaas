@@ -22,10 +22,10 @@
 
     @if (in_array($resource, ['customers', 'properties', 'connections', 'connection-usage-types']))
         <p class="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-            Alta del servicio: 1. Cliente → 2. Predio (casa o local) → 3. Conexión → 4. Revisar tarifa y cuotas.
+            <strong>Paso {{ array_search($resource, ['customers', 'properties', 'connections', 'connection-usage-types']) + 1 }} de 4.</strong> Cada paso se guarda antes de continuar.<br>Alta del servicio: 1. Cliente → 2. Predio (casa o local) → 3. Conexión → 4. Revisar tarifa y cuotas.
             @if ($resource === 'properties')Un predio inactivo no recibirá cuotas.@endif
             @if ($resource === 'customers')EXONERADO libera de las multas correspondientes; el agua se sigue facturando.@endif
-            @if ($resource === 'connections')La fecha de instalación impide emitir cuotas de meses anteriores. Al corregirla, revisa también las fechas de la asignación de uso.@endif
+            @if ($resource === 'connections')La fecha de instalación impide emitir cuotas de meses anteriores. Al corregirla, revisa también las fechas de la asignación de uso. Las cuotas emitidas conservan su importe y vencimiento; el cambio no recalcula la historia.@endif
             @if ($resource === 'connection-usage-types')El tipo de uso determina la tarifa; las fechas indican cuándo se aplica.@endif
         </p>
     @endif
@@ -45,7 +45,17 @@
         @include('resources.cycle-schedule')
     @endif
 
-    <form method="POST" action="{{ $editing ? route('resources.update', ['resource' => $resource, 'record' => $record->getKey()]) : route('resources.store', ['resource' => $resource]) }}" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+    @if ($resource === 'incomes')
+        <aside class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <h3 class="font-bold">Otros ingresos: dinero que no viene de una cobranza</h3>
+            <p class="mt-2 text-sm">Registra donaciones u otras entradas adicionales. Si el dinero corresponde a cuotas o multas de un cliente, cóbralo desde Pagos. No registres el mismo dinero en ambos módulos.</p>
+            @if (App\Support\ResourceAccess::isAdministrator(auth()->user()) || auth()->user()->role?->permissions->contains('name', 'payments.create'))<a class="mt-3 inline-block font-semibold text-sky-700" href="{{ route('collections.create') }}">Cobrar y entregar recibo →</a>@endif
+        </aside>
+    @endif
+    @if ($editing && $resource === 'connections')
+        <aside class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4"><h3 class="font-bold">Antes de corregir la fecha de instalación</h3><p class="mt-2 text-sm">Esta conexión tiene {{ $record->invoices()->count() }} cuotas históricas. Cambiar la fecha solo afecta nuevas emisiones; no borra ni recalcula las anteriores. Guarda y revisa las asignaciones de uso para que sus fechas correspondan a la instalación.</p></aside>
+    @endif
+    <form data-warn-unsaved method="POST" action="{{ $editing ? route('resources.update', ['resource' => $resource, 'record' => $record->getKey()]) : route('resources.store', ['resource' => $resource]) }}" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
         @csrf
         @if ($errors->any())<div role="alert" tabindex="-1" class="mb-5 rounded-lg bg-rose-50 p-4 text-rose-800">Revisa los campos indicados; tus datos se conservaron.</div>@endif
         @if ($editing) @method('PUT') @endif

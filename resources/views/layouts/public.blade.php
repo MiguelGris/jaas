@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'Consulta de deudas') · JASS</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <link rel="stylesheet" href="{{ asset('css/ux.css') }}">
 </head>
-<body class="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
+<body class="public-surface min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
+    <a href="#main-content" class="skip-link">Saltar al contenido</a>
     <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="mx-auto flex h-18 max-w-6xl items-center justify-between px-5 sm:px-8">
             <a href="{{ route('home') }}" class="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -21,7 +23,7 @@
         </div>
     </header>
 
-    <main>
+    <main id="main-content" tabindex="-1">
         @if (session('success'))
             <div class="mx-auto mt-6 max-w-3xl px-5 sm:px-8"><div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('success') }}</div></div>
         @endif
@@ -31,5 +33,6 @@
     <footer class="mt-16 border-t border-slate-200 bg-white py-7">
         <p class="mx-auto max-w-6xl px-5 text-center text-xs text-slate-500 sm:px-8">JASS · Consulta de pagos y deudas del servicio.</p>
     </footer>
+    @stack('scripts')
 </body>
 </html>

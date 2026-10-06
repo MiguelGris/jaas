@@ -119,6 +119,7 @@ final class PaymentCollectionService
                     'date_field' => 'paid_at',
                 ], $date),
                 'notes' => $details['notes'] ?? null,
+                'external_reference' => $details['external_reference'] ?? null,
                 'status' => Payment::STATUS_ACTIVE,
             ]);
 

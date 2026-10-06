@@ -25,6 +25,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\ReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class PaymentConceptReportTest extends TestCase
@@ -74,7 +75,7 @@ class PaymentConceptReportTest extends TestCase
         $this->assertSame(40.0, $annual['summary']['Saldo anual']);
 
         $this->actingAs($administrator)
-            ->get(route('dashboard'))
+            ->get(route('reports.index'))
             ->assertOk()
             ->assertSee('Conceptos de pago mensuales')
             ->assertSee('Conceptos de pago anuales');
@@ -96,6 +97,21 @@ class PaymentConceptReportTest extends TestCase
             ]))
             ->assertOk()
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    }
+
+    public function test_excel_preserves_numeric_zero_concepts(): void
+    {
+        [$administrator] = $this->context();
+        $response = $this->actingAs($administrator)->get(route('reports.download', ['report' => 'payment-concepts-monthly', 'format' => 'xlsx', 'month' => '2026-02']))->assertOk();
+        $path = tempnam(sys_get_temp_dir(), 'jass-xlsx-');
+        try {
+            file_put_contents($path, $response->streamedContent());
+            $sheet = IOFactory::load($path)->getActiveSheet();
+            $this->assertNotNull($sheet->getCell('B5')->getValue());
+            $this->assertSame(0.0, (float) $sheet->getCell('B5')->getValue());
+        } finally {
+            unlink($path);
+        }
     }
 
     /** @return array{User, Payment} */
