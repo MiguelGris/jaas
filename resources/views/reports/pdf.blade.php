@@ -21,6 +21,7 @@
     </style>
 </head>
 <body>
+    <div style="margin-bottom:14px;border-bottom:1px solid #dbe3ed;padding-bottom:10px"><img src="data:image/jpeg;base64,{{ base64_encode(file_get_contents(public_path('brand/symbol-print.jpg'))) }}" alt="" width="36" height="36" style="vertical-align:middle"><span style="font-size:14px;font-weight:bold;vertical-align:middle"> {{ config('jass.name') }}</span><div style="color:#475569;margin-top:3px">{{ config('jass.full_name') }}</div></div>
     <h1>{{ $report['title'] }}</h1>
     <p class="subtitle">{{ $report['subtitle'] }}</p>
     @foreach ($report['intro_tables'] ?? [] as $table)

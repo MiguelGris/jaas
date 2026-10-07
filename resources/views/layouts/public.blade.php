@@ -3,7 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@yield('title', 'Consulta de deudas') · JASS</title>
+    @include('partials.brand-icons')
+    <title>@yield('title', 'Consulta de deudas') · {{ config('jass.name') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="{{ asset('css/ux.css') }}">
 </head>
@@ -12,8 +13,8 @@
     <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
         <div class="mx-auto flex h-18 max-w-6xl items-center justify-between px-5 sm:px-8">
             <a href="{{ route('home') }}" class="flex min-w-0 items-center gap-2 sm:gap-3">
-                <span class="grid size-9 place-items-center rounded-xl bg-sky-600 font-black text-white">J</span>
-                <span class="min-w-0"><span class="block text-sm font-bold tracking-wide text-slate-900">JASS</span><span class="hidden truncate text-xs text-slate-500 sm:block">Administración de agua</span></span>
+                <img src="{{ asset('brand/symbol.svg') }}" alt="" width="40" height="40" class="size-10 shrink-0">
+                <span class="min-w-0"><span class="block text-sm font-bold tracking-wide text-slate-900">{{ config('jass.name') }}</span><span class="hidden truncate text-xs text-slate-500 sm:block">Agua y saneamiento</span></span>
             </a>
             @auth
                 <a href="{{ route('dashboard') }}" class="shrink-0 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 sm:px-3.5 sm:text-sm">Ir al panel</a>
@@ -31,7 +32,7 @@
     </main>
 
     <footer class="mt-16 border-t border-slate-200 bg-white py-7">
-        <p class="mx-auto max-w-6xl px-5 text-center text-xs text-slate-500 sm:px-8">JASS · Consulta de pagos y deudas del servicio.</p>
+        <p class="mx-auto max-w-6xl px-5 text-center text-xs text-slate-500 sm:px-8">{{ config('jass.name') }} · Consulta de pagos y deudas del servicio.<br>{{ config('jass.full_name') }}</p>
     </footer>
     @stack('scripts')
 </body>

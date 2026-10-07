@@ -1,6 +1,6 @@
-# Sistema de gestión JASS
+# Sistema de gestión JASS Pucará
 
-Aplicación web para administrar una Junta Administradora de Servicios de Saneamiento (JASS). Centraliza clientes, predios, conexiones, cuotas mensuales, cobranzas, caja, asambleas, multas, medidores, reportes y auditoría.
+Aplicación web de la Junta Administradora de Agua y Saneamiento (JASS) Pucará. Centraliza clientes, predios, conexiones, cuotas mensuales, cobranzas, caja, asambleas, multas, medidores, reportes y auditoría.
 
 La interfaz está en español, es adaptable a computadoras y teléfonos, y está construida con Laravel, Blade y Tailwind CSS.
 

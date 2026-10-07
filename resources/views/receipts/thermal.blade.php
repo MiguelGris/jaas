@@ -3,7 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Recibo {{ $payment->receipt_code }}</title>
+    <title>Recibo {{ $payment->receipt_code }} · {{ config('jass.name') }}</title>
+    @include('partials.brand-icons')
     <style>
         @page { size: 58mm auto; margin: 0; }
         * { box-sizing: border-box; }
@@ -39,8 +40,9 @@
     @endphp
     <main class="receipt">
         <header class="center">
-            <p class="title">JASS</p>
-            <p class="muted">Administración del servicio de agua</p>
+            <img src="{{ asset('brand/symbol.png') }}" alt="" width="40" height="40" style="display:block;margin:0 auto;filter:grayscale(1)">
+            <p class="title">{{ config('jass.name') }}</p>
+            <p class="muted">{{ config('jass.full_name') }}</p>
             <p><strong>{{ $payment->status === App\Models\Payment::STATUS_VOIDED ? 'RECIBO ANULADO' : 'RECIBO DE PAGO' }}</strong><br>{{ $payment->receipt_code }}</p>
         </header>
 

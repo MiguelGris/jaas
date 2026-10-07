@@ -79,7 +79,8 @@ final class ReportController extends Controller
         $sheet->mergeCells("A1:{$lastColumn}1");
         $sheet->setCellValue('A1', $document['title']);
         $sheet->mergeCells("A2:{$lastColumn}2");
-        $sheet->setCellValue('A2', $document['subtitle']);
+        $sheet->setCellValue('A2', config('jass.name').' · '.$document['subtitle']);
+        $spreadsheet->getProperties()->setCreator(config('jass.name'))->setCompany(config('jass.full_name'));
         $currentRow = 4;
 
         // Algunos reportes incluyen tablas de resumen antes del detalle. La

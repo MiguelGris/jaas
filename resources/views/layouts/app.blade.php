@@ -3,7 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@yield('title', 'Panel') · JASS</title>
+    @include('partials.brand-icons')
+    <title>@yield('title', 'Panel') · {{ config('jass.name') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link rel="stylesheet" href="{{ asset('css/ux.css') }}">
 </head>
@@ -13,10 +14,10 @@
         <aside class="app-sidebar border-b border-slate-200 bg-slate-950 text-slate-300 lg:min-h-screen lg:border-b-0 lg:border-r lg:border-slate-800">
             <div class="flex items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
                 <div class="flex min-w-0 items-center gap-3">
-                    <div class="grid size-10 shrink-0 place-items-center rounded-xl bg-sky-500 font-black text-white shadow-lg shadow-sky-950/40">J</div>
+                    <img src="{{ asset('brand/symbol.svg') }}" alt="" width="40" height="40" class="size-10 shrink-0 rounded-xl bg-white p-0.5">
                     <div class="min-w-0">
-                        <p class="text-sm font-semibold tracking-wide text-white">JASS</p>
-                        <p class="truncate text-xs text-slate-400">Administración de agua</p>
+                        <p class="text-sm font-semibold tracking-wide text-white">{{ config('jass.name') }}</p>
+                        <p class="truncate text-xs text-slate-400">Agua y saneamiento</p>
                     </div>
                 </div>
                 <button id="mobile-menu-toggle" type="button" class="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 lg:hidden" aria-controls="sidebar-navigation" aria-expanded="false">
