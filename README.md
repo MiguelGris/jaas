@@ -15,7 +15,7 @@ La interfaz está en español, es adaptable a computadoras y teléfonos, y está
 - Ciclos de pago configurables en meses enteros positivos, con periodo de gracia configurable.
 - Cálculo de mora mensual después del vencimiento.
 - Cobranza por DNI, nombres o apellidos, seleccionando cuotas y multas.
-- Recibos de pago de 58 mm, número de operación automático y anulación controlada.
+- Recibos de pago con ancho seleccionable de 58 u 80 mm, número de operación automático y anulación controlada.
 - Ingresos, egresos, saldo en caja y cierres mensuales automáticos.
 - Asambleas, lector de código de barras del DNI, asistencias y multas por inasistencia.
 - Dashboard con saldo, recaudación, ingresos, gastos e indicadores operativos.

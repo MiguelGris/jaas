@@ -12,7 +12,7 @@
 
     @if (session('receipt_id'))
         <div class="mb-6 flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div><p class="font-semibold text-sky-950">Recibo listo para imprimir</p><p class="mt-0.5 text-sm text-sky-800">Se abrirá en formato térmico de 58 mm.</p></div>
+            <div><p class="font-semibold text-sky-950">Recibo listo para imprimir</p><p class="mt-0.5 text-sm text-sky-800">Podrás elegir papel térmico de 58 u 80 mm antes de imprimir.</p></div>
             <a href="{{ route('receipts.thermal', ['payment' => session('receipt_id')]) }}" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-800">Imprimir recibo</a>
         </div>
     @endif

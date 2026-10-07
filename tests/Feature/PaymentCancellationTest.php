@@ -91,8 +91,10 @@ class PaymentCancellationTest extends TestCase
             ->assertOk()
             ->assertSee('RECIBO ANULADO')
             ->assertSee('Se seleccionó al cliente equivocado.')
-            ->assertSee('@page { size: 58mm auto; margin: 0; }', false)
-            ->assertSee('papel de 58 mm');
+            ->assertSee('@page { size: auto; margin: 0; }', false)
+            ->assertSee('Ancho del papel térmico')
+            ->assertSee('80 mm · impresora estándar')
+            ->assertSee('paper-width-help', false);
     }
 
     /** @return array{User, Customer, Invoice} */
