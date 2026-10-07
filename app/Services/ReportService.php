@@ -63,7 +63,7 @@ final class ReportService
         Payment::query()->active()->with('customer')->whereBetween('paid_at', [$start, $end])->get()->each(function (Payment $payment) use ($entries): void {
             $customer = $payment->customer;
             $entries->push([
-                'date' => $payment->paid_at->toDateString(), 'type' => 'Cobro de cuota', 'code' => $payment->receipt_code,
+                'date' => $payment->paid_at->toDateString(), 'type' => 'Cobranza', 'code' => $payment->receipt_code,
                 'concept' => $customer?->display_name ?? 'Cliente no asociado',
                 'income' => (float) $payment->amount, 'expense' => 0.0,
             ]);

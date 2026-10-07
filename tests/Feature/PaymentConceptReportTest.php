@@ -114,6 +114,21 @@ class PaymentConceptReportTest extends TestCase
         }
     }
 
+    public function test_cash_flow_labels_a_fine_only_payment_as_collection(): void
+    {
+        [, $payment] = $this->context();
+        PaymentAllocation::query()->where('payment_id', $payment->id)->where('charge_type', 'INVOICE')->delete();
+        $payment->update(['amount' => 8]);
+
+        $report = app(ReportService::class)->build('cash-flow', ['month' => '2026-01']);
+        $row = collect($report['rows'])->first(fn (array $row): bool => $row[2] === $payment->receipt_code);
+
+        $this->assertNotNull($row);
+        $this->assertSame('Cobranza', $row[1]);
+        $this->assertSame(8.0, $row[4]);
+        $this->assertSame(23.0, $report['summary']['Saldo del período']);
+    }
+
     /** @return array{User, Payment} */
     private function context(): array
     {
