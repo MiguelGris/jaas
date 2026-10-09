@@ -103,6 +103,7 @@ final class AttendanceScannerController extends Controller
         return redirect()
             ->route('attendance.scanner', ['assembly' => $assembly->getKey()])
             ->with('attendance_name', $name)
+            ->with('attendance_already_present', $alreadyPresent)
             ->with('attendance_message', $message);
     }
 }

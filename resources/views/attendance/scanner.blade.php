@@ -10,14 +10,21 @@
         <p class="mt-1 text-sm text-slate-500">Conecta el lector de código de barras, selecciona la asamblea y escanea el DNI. Al confirmar un nombre, el campo queda listo para la siguiente lectura.</p>
     </div>
 
+    @if ($errors->any())
+        <div class="mb-6 rounded-2xl border border-red-300 bg-red-50 px-5 py-7 text-center shadow-sm" role="alert" aria-live="assertive">
+            <p class="text-sm font-bold uppercase tracking-[0.2em] text-red-700">Error al registrar asistencia</p>
+            <p class="mt-2 text-4xl font-extrabold tracking-tight text-red-950 sm:text-5xl">{{ $errors->first() }}</p>
+            <p class="mt-3 text-base font-medium text-red-800">Revisa la asamblea y el DNI, y vuelve a intentar la lectura.</p>
+        </div>
+    @endif
     @if ($assemblies->isEmpty())
         <div class="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900"><p class="font-bold">No hay asambleas programadas.</p><p class="mt-1 text-sm">Crea una asamblea antes de usar el lector.</p></div>
     @else
         @if (session('attendance_name'))
-            <div class="mb-6 rounded-2xl border border-emerald-300 bg-emerald-50 px-5 py-7 text-center shadow-sm" role="status" aria-live="polite">
-                <p class="text-sm font-bold uppercase tracking-[0.2em] text-emerald-700">Asistencia confirmada</p>
-                <p class="mt-2 text-4xl font-extrabold tracking-tight text-emerald-950 sm:text-5xl">{{ session('attendance_name') }}</p>
-                <p class="mt-3 text-base font-medium text-emerald-800">{{ session('attendance_message') }}</p>
+            <div class="mb-6 rounded-2xl border {{ session('attendance_already_present') ? 'border-sky-300 bg-sky-50' : 'border-emerald-300 bg-emerald-50' }} px-5 py-7 text-center shadow-sm" role="status" aria-live="polite">
+                <p class="text-sm font-bold uppercase tracking-[0.2em] {{ session('attendance_already_present') ? 'text-sky-700' : 'text-emerald-700' }}">{{ session('attendance_already_present') ? 'Asistencia ya registrada' : 'Asistencia confirmada' }}</p>
+                <p class="mt-2 text-4xl font-extrabold tracking-tight {{ session('attendance_already_present') ? 'text-sky-950' : 'text-emerald-950' }} sm:text-5xl">{{ session('attendance_name') }}</p>
+                <p class="mt-3 text-base font-medium {{ session('attendance_already_present') ? 'text-sky-800' : 'text-emerald-800' }}">{{ session('attendance_message') }}</p>
             </div>
         @endif
 
@@ -39,14 +46,12 @@
                     'required' => true,
                     'placeholder' => $searchAssemblies ? 'Código, fecha o lugar de la asamblea' : 'Selecciona una asamblea',
                 ])
-                @error('assembly_id')<p class="mt-1.5 text-sm font-medium text-rose-600">{{ $message }}</p>@enderror
             </div>
 
             <div class="mt-5">
                 <label for="barcode" class="mb-1.5 block text-sm font-semibold text-slate-700">Lectura del DNI</label>
                 <input id="barcode" name="barcode" inputmode="numeric" autocomplete="off" autofocus placeholder="Escanea el código o escribe el DNI" class="block w-full rounded-lg border-slate-300 px-4 py-3 text-lg font-semibold tracking-wider shadow-sm focus:border-sky-500 focus:ring-sky-500" required>
                 <p class="mt-2 text-sm text-slate-500">Los lectores USB/Bluetooth suelen actuar como teclado: escanea el código y presiona Enter.</p>
-                @error('barcode')<p class="mt-1.5 text-sm font-medium text-rose-600">{{ $message }}</p>@enderror
             </div>
 
             <div class="mt-5">
