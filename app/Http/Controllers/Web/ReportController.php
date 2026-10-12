@@ -12,9 +12,11 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -43,6 +45,7 @@ final class ReportController extends Controller
             'payment-concepts-annual',
             'customer-payment-history',
             'service-waivers',
+            'late-fee-fine-waivers-annual',
             'debtors',
             'debt-aging',
             'payment-methods',
@@ -99,15 +102,19 @@ final class ReportController extends Controller
             $sheet->getStyle("A{$headerRow}:".Coordinate::stringFromColumnIndex(count($table['headers'])).$headerRow)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('0284C7');
 
             if ($table['rows'] !== []) {
-                $sheet->fromArray($table['rows'], null, 'A'.($headerRow + 1), true);
+                $this->writeRows($sheet, $table['rows'], $headerRow + 1);
             }
 
+            foreach ($table['currency_columns'] ?? [] as $index) {
+                $column = Coordinate::stringFromColumnIndex($index + 1);
+                $sheet->getStyle($column.($headerRow + 1).':'.$column.($headerRow + max(1, count($table['rows']))))->getNumberFormat()->setFormatCode('"S/" #,##0.00');
+            }
             $currentRow = $headerRow + max(1, count($table['rows'])) + 2;
         }
 
         if (($document['intro_tables'] ?? []) !== []) {
             $sheet->mergeCells("A{$currentRow}:{$lastColumn}{$currentRow}");
-            $sheet->setCellValue("A{$currentRow}", 'Detalle de asistentes e inasistentes');
+            $sheet->setCellValue("A{$currentRow}", $document['detail_title'] ?? 'Detalle de asistentes e inasistentes');
             $sheet->getStyle("A{$currentRow}:{$lastColumn}{$currentRow}")->getFont()->setBold(true)->setSize(11)->getColor()->setRGB('0F172A');
             $currentRow++;
         }
@@ -118,14 +125,14 @@ final class ReportController extends Controller
         $sheet->fromArray([$document['headers']], null, "A{$mainHeaderRow}");
 
         if ($document['rows'] !== []) {
-            $sheet->fromArray($document['rows'], null, "A{$mainDataRow}", true);
+            $this->writeRows($sheet, $document['rows'], $mainDataRow);
         }
 
         $summaryRow = $mainDataRow + count($document['rows']) + 2;
 
         foreach ($document['summary'] as $label => $value) {
             $sheet->setCellValue("A{$summaryRow}", $label);
-            $sheet->setCellValue("B{$summaryRow}", $value);
+            $this->writeCell($sheet, "B{$summaryRow}", $value);
             $summaryRow++;
         }
 
@@ -154,6 +161,24 @@ final class ReportController extends Controller
             $document['filename'].'.xlsx',
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
         );
+    }
+
+    private function writeRows(Worksheet $sheet, array $rows, int $firstRow): void
+    {
+        foreach (array_values($rows) as $offset => $row) {
+            foreach (array_values($row) as $index => $value) {
+                $this->writeCell($sheet, Coordinate::stringFromColumnIndex($index + 1).($firstRow + $offset), $value);
+            }
+        }
+    }
+
+    private function writeCell(Worksheet $sheet, string $coordinate, mixed $value): void
+    {
+        if (is_string($value)) {
+            $sheet->setCellValueExplicit($coordinate, $value, DataType::TYPE_STRING);
+        } else {
+            $sheet->setCellValue($coordinate, $value);
+        }
     }
 
     /** @param array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>, intro_tables?: list<array{title: string, headers: list<string>, rows: list<list<string|int|float>>}>} $document */

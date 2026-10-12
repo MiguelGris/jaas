@@ -4,10 +4,14 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Customer;
+use App\Models\LateFeeWaiver;
 use App\Models\PaymentMethod;
+use App\Models\ServiceWaiver;
 use App\Services\AuditService;
 use App\Services\DebtService;
+use App\Services\LateFeeWaiverService;
 use App\Services\PaymentCollectionService;
+use App\Services\ServiceWaiverService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -17,6 +21,7 @@ final class CollectionController extends Controller
     public function create(Request $request, DebtService $debts): View
     {
         $customerId = $request->input('customer', old('customer_id'));
+        validator(['customer' => $customerId], ['customer' => ['nullable', 'integer', 'min:1']])->validate();
         $customer = $customerId ? Customer::query()->find($customerId) : null;
 
         $customers = Customer::query()
@@ -33,10 +38,11 @@ final class CollectionController extends Controller
         return view('collections.create', [
             'customers' => $customers,
             'customer' => $customer,
+            'serviceWaiverInvoices' => $charges['invoices']->filter(fn ($invoice) => $invoice->waivable_service_balance > 0),
             'invoices' => $charges['invoices']->filter(fn ($invoice) => $invoice->service_balance > 0),
             'lateFees' => $charges['invoices']->filter(fn ($invoice) => $invoice->late_fee_balance > 0),
-            'serviceWaiverHistory' => \App\Models\ServiceWaiver::query()->with(['invoice.connection.property.customer', 'user'])->when($customer,fn($q)=>$q->whereHas('invoice.connection.property',fn($q)=>$q->where('customer_id',$customer->id)))->when(! $customer,fn($q)=>$q->whereRaw('1=0'))->latest()->limit(20)->get(),
-            'waiverHistory' => \App\Models\LateFeeWaiver::query()->with(['invoice.billingPeriod', 'user'])->when($customer, fn ($q) => $q->whereHas('invoice.connection.property', fn ($q) => $q->where('customer_id', $customer->id)))->when(! $customer, fn ($q) => $q->whereRaw('1 = 0'))->latest()->limit(20)->get(),
+            'serviceWaiverHistory' => ServiceWaiver::query()->with(['invoice.connection.property.customer', 'user'])->when($customer, fn ($q) => $q->whereHas('invoice.connection.property', fn ($q) => $q->where('customer_id', $customer->id)))->when(! $customer, fn ($q) => $q->whereRaw('1=0'))->latest()->limit(20)->get(),
+            'waiverHistory' => LateFeeWaiver::query()->with(['invoice.billingPeriod', 'user'])->when($customer, fn ($q) => $q->whereHas('invoice.connection.property', fn ($q) => $q->where('customer_id', $customer->id)))->when(! $customer, fn ($q) => $q->whereRaw('1 = 0'))->latest()->limit(20)->get(),
             'fines' => $charges['fines'],
             'paymentMethods' => PaymentMethod::query()->orderBy('name')->get(),
         ]);
@@ -73,7 +79,8 @@ final class CollectionController extends Controller
             ->with('success', "Pago registrado. Recibo {$payment->receipt_code} emitido por S/ ".number_format((float) $payment->amount, 2).'.')
             ->with('receipt_id', $payment->getKey());
     }
-    public function waive(Request $request, \App\Services\LateFeeWaiverService $waivers): RedirectResponse
+
+    public function waive(Request $request, LateFeeWaiverService $waivers): RedirectResponse
     {
         $data = $request->validate([
             'customer_id' => ['required', 'integer', 'exists:customers,id'],
@@ -85,14 +92,17 @@ final class CollectionController extends Controller
         ]);
         $customer = Customer::query()->findOrFail($data['customer_id']);
         $amount = $waivers->waive($customer, $data['waiver_invoices'], $data['waiver_mode'], (float) ($data['waiver_value'] ?? 0), $data['waiver_reason'], $request->user());
+
         return redirect()->route('collections.create', ['customer' => $customer->id])
             ->with('success', 'Mora condonada: S/ '.number_format($amount, 2).'. La condonación quedó registrada y no es un ingreso de caja.');
     }
-    public function waiveService(Request $request, \App\Services\ServiceWaiverService $service): RedirectResponse {
-        $data=$request->validate(['customer_id'=>['required','integer','exists:customers,id'],'service_invoices'=>['required','array','min:1'],'service_invoices.*'=>['integer','distinct','exists:invoices,id'],'service_mode'=>['required','in:all,percentage,amount'],'service_value'=>['nullable','numeric','min:0','max:99999999.99'],'service_reason'=>['required','string','max:250']]);
-        $customer=Customer::query()->findOrFail($data['customer_id']);
-        $waivers=$service->waive($customer,$data['service_invoices'],$data['service_mode'],(float)($data['service_value']??0),$data['service_reason'],$request->user());
-        return redirect()->route('collections.create',['customer'=>$customer->id])->with('success','Servicio condonado: S/ '.number_format(collect($waivers)->sum('amount'),2).'. Los recibos mensuales están disponibles en el historial de condonaciones.');
-    }
 
+    public function waiveService(Request $request, ServiceWaiverService $service): RedirectResponse
+    {
+        $data = $request->validate(['customer_id' => ['required', 'integer', 'exists:customers,id'], 'service_invoices' => ['required', 'array', 'min:1'], 'service_invoices.*' => ['integer', 'distinct', 'exists:invoices,id'], 'service_mode' => ['required', 'in:all,percentage,amount'], 'service_value' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'], 'service_reason' => ['required', 'string', 'max:250']]);
+        $customer = Customer::query()->findOrFail($data['customer_id']);
+        $waivers = $service->waive($customer, $data['service_invoices'], $data['service_mode'], (float) ($data['service_value'] ?? 0), $data['service_reason'], $request->user());
+
+        return redirect()->route('collections.create', ['customer' => $customer->id])->with('success', 'Servicio condonado: S/ '.number_format(collect($waivers)->sum('amount'), 2).'. Los recibos mensuales están disponibles en el historial de condonaciones.');
+    }
 }

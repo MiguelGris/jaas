@@ -78,15 +78,15 @@ final class PaymentCollectionService
                     throw ValidationException::withMessages(['invoices' => 'Una de las cuotas seleccionadas ya fue pagada.']);
                 }
 
-                $separate = $separate || $invoice->waived_service > 0;
+                $invoiceSeparate = $separate || $invoice->waived_service > 0;
                 $cashParts = app(PaymentConceptService::class)->paidPartsForInvoice($invoice);
                 $rateBalance = max(0, round((float) $invoice->rate - $cashParts['services'] - $cashParts['service_waived'], 2));
-                $charge = $separate ? $invoice->service_balance : $invoice->balance_due;
+                $charge = $invoiceSeparate ? $invoice->service_balance : $invoice->balance_due;
                 if ($charge <= 0) {
                     throw ValidationException::withMessages(['invoices' => 'El servicio seleccionado ya fue pagado.']);
                 }
                 $this->debts->synchroniseInvoice($invoice, $date);
-                $allocations[] = ['invoice' => $invoice, 'amount' => $charge, 'concept' => $separate ? 'SERVICE' : null, 'service_component' => $separate ? min($charge, $rateBalance) : null, 'fine_component' => $separate ? max(0, round($charge - min($charge, $rateBalance), 2)) : null];
+                $allocations[] = ['invoice' => $invoice, 'amount' => $charge, 'concept' => $invoiceSeparate ? 'SERVICE' : null, 'service_component' => $invoiceSeparate ? min($charge, $rateBalance) : null, 'fine_component' => $invoiceSeparate ? max(0, round($charge - min($charge, $rateBalance), 2)) : null];
             }
 
             foreach ($feeIds as $feeId) {
@@ -161,6 +161,7 @@ final class PaymentCollectionService
                         'service_component' => $allocation['service_component'] ?? null,
                         'fine_component' => $allocation['fine_component'] ?? null,
                     ]);
+
                     continue;
                 }
 

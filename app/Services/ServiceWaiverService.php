@@ -29,11 +29,11 @@ final class ServiceWaiverService
                 throw ValidationException::withMessages(['service_waiver' => 'Una cuota no pertenece al cliente o está anulada.']);
             }
             $debts = app(DebtService::class);
-            $rows = $invoices->map(fn ($invoice) => ['id' => $invoice->id, 'balance' => $debts->decorateInvoice($invoice)->service_balance])->values();
+            $rows = $invoices->map(fn ($invoice) => ['id' => $invoice->id, 'balance' => $debts->decorateInvoice($invoice)->waivable_service_balance])->values();
             if ($rows->contains(fn ($row) => $row['balance'] <= 0)) {
                 throw ValidationException::withMessages(['service_waiver' => 'Una cuota ya fue pagada o condonada.']);
             }
-            $plan = app(BulkWaiverService::class)->plan($rows, $mode, $value);
+            $plan = app(WaiverPlanService::class)->plan($rows, $mode, $value);
             $waivers = [];
             foreach ($plan as $row) {
                 $invoice = $invoices[$row['id']];

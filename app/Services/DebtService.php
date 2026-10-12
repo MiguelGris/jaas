@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Fine;
 use App\Models\Invoice;
 use App\Models\LateFeeSetting;
+use App\Models\LateFeeWaiver;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -25,8 +26,7 @@ final class DebtService
         $invoices = Invoice::query()
             ->where('status', '!=', 'CANCELLED')
             ->whereHas('connection.property', fn ($query) => $query->where('customer_id', $customer->getKey()))
-            ->with(['connection.property', 'billingPeriod'])
-            ->withSum('paymentAllocations', 'amount')
+            ->with(['connection.property', 'billingPeriod', 'paymentAllocations.payment', 'serviceWaivers'])
             ->orderBy('period_starts_on')
             ->get()
             ->map(fn (Invoice $invoice): Invoice => $this->decorateInvoice($invoice, $date))
@@ -131,10 +131,11 @@ final class DebtService
         $totalDue = round($serviceAmount + $lateFee, 2);
         $parts = app(PaymentConceptService::class)->paidPartsForInvoice($invoice);
         $paid = round($parts['services'] + $parts['fines'] + $parts['late_fees'], 2);
-        $waived = (float) \App\Models\LateFeeWaiver::query()->where('invoice_id', $invoice->id)->sum('amount');
+        $waived = (float) LateFeeWaiver::query()->where('invoice_id', $invoice->id)->sum('amount');
         $serviceBalance = max(0, round($serviceAmount - $parts['services'] - $parts['fines'] - $parts['service_waived'], 2));
         $feeBalance = max(0, round($lateFee - $parts['late_fees'] - $waived, 2));
         $invoice->setAttribute('waived_service', $parts['service_waived']);
+        $invoice->setAttribute('waivable_service_balance', max(0, round((float) $invoice->rate - $parts['services'] - $parts['service_waived'], 2)));
         $invoice->setAttribute('service_balance', $serviceBalance);
         $invoice->setAttribute('late_fee_balance', $feeBalance);
         $invoice->setAttribute('waived_late_fee', $waived);
@@ -171,7 +172,7 @@ final class DebtService
         $this->forgetComputedAttributes($invoice, [
             'service_amount', 'calculated_late_fee', 'amount_due', 'paid_amount',
             'balance_due', 'late_fee_months', 'payment_allocations_sum_amount',
-            'service_balance', 'late_fee_balance', 'waived_late_fee', 'waived_service',
+            'service_balance', 'late_fee_balance', 'waived_late_fee', 'waived_service', 'waivable_service_balance',
         ]);
         $invoice->late_fee = $lateFee;
         $invoice->total = $total;
@@ -198,21 +199,27 @@ final class DebtService
         $siblings = Invoice::query()->where('connection_id', $invoice->connection_id)
             ->where('billing_period_id', $invoice->billing_period_id)
             ->where('status', '!=', 'CANCELLED')
+            ->with(['paymentAllocations.payment', 'serviceWaivers'])
             ->whereBetween('period_starts_on', [$cycle['start']->toDateString(), $cycle['end']->toDateString()])
             ->orderBy('period_starts_on')->orderBy('id')
             ->when(DB::transactionLevel() > 0, fn ($query) => $query->lockForUpdate())
             ->get();
-        $pending = $siblings->filter(function ($sibling): bool {
-            $paid = app(PaymentConceptService::class)->paidPartsForInvoice($sibling);
-            return round($paid['services'] + $paid['fines'] + $paid['service_waived'], 2) < round((float) $sibling->rate + (float) $sibling->fines, 2);
+        $coverage = $siblings->mapWithKeys(fn ($sibling) => [$sibling->id => app(PaymentConceptService::class)->paidPartsForInvoice($sibling)]);
+        $pending = $siblings->filter(function ($sibling) use ($coverage): bool {
+            $paid = $coverage[$sibling->id];
+
+            return round($paid['services'] + $paid['service_waived'], 2) < round((float) $sibling->rate, 2);
         });
         $carrier = $pending->first() ?? $siblings->first();
         if (! $carrier?->is($invoice)) {
             return (float) $invoice->late_fee;
         }
         if ($pending->isEmpty()) {
-            $settledAt = $siblings->map(fn ($sibling) => app(PaymentConceptService::class)->paidPartsForInvoice($sibling)['service_settled_at'])->filter()->sort()->last();
-            if ($settledAt !== null && $settledAt->lt($date)) {
+            $settledAt = $coverage->pluck('service_settled_at')->filter()->sort()->last();
+            if ($settledAt === null) {
+                return (float) $invoice->late_fee;
+            }
+            if ($settledAt->lt($date)) {
                 $date = Carbon::parse($settledAt);
             }
         }

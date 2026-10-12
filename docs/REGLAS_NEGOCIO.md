@@ -248,3 +248,11 @@ Cada cuota afectada genera un recibo mensual de condonación con código propio,
 En condonaciones individuales se rechazan importes superiores al saldo pendiente. En campañas masivas, el importe por cliente se limita automáticamente a la deuda seleccionada de ese cliente, sin rechazar a quienes deben menos. Los porcentajes superiores al 100% se rechazan en ambas modalidades. Los saldos no pueden ser negativos ni convertirse en créditos a favor del cliente. Una condonación no crea un pago ni aumenta caja o recaudación. Los pagos posteriores solo cobran el saldo restante y las anulaciones conservan las condonaciones previas.
 
 Un ciclo cuyo servicio queda totalmente cubierto por pagos, condonaciones o ambos deja de acumular mora en la fecha en que se cubre la última cuota de servicio. Su mora existente permanece pendiente salvo que también se condone o pague. Todas las condonaciones del servicio y sus campañas se registran en la bitácora.
+
+## Cuotas históricas con multas incluidas
+
+La condonación del servicio cubre únicamente la tarifa de servicio pendiente. Una multa incluida en una cuota antigua conserva su saldo; no se condona al seleccionar servicio.
+
+La mora del ciclo depende del servicio impago. Cuando el servicio está totalmente cubierto, una multa antigua pendiente no sigue aumentando la mora del ciclo. Las cuotas de tarifa cero sin servicio impago no generan mora nueva.
+
+Las asambleas con multas condonadas no pueden reabrirse, cancelarse ni cambiar el importe histórico de la multa. Así se conserva la deuda que respaldó la campaña y se evita reescribir las condonaciones registradas.

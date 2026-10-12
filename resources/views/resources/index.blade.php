@@ -6,8 +6,6 @@
 @section('content')
     @php
         $visibleTotal = $records->total();
-        $canAnnulPayments = App\Support\ResourceAccess::isAdministrator(auth()->user())
-            || auth()->user()->role?->permissions->contains('name', 'payments.create');
         $deleteConfirmation = match ($resource) {
             'incomes' => '¿Eliminar este ingreso? El saldo de caja se actualizará y la acción quedará en la bitácora.',
             'expenses' => '¿Eliminar este egreso? El saldo de caja se actualizará y la acción quedará en la bitácora.',
@@ -25,7 +23,7 @@
         @endunless
     </div>
 
-    @if (! in_array($resource, ['customers', 'payments', 'audit-logs']))
+    @if (! in_array($resource, ['customers', 'audit-logs']))
         <form method="GET" class="mb-6 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
             @if ($invoiceState !== '')<input type="hidden" name="state" value="{{ $invoiceState }}">@endif
             <input type="hidden" name="per_page" value="{{ $perPage }}">
@@ -75,21 +73,8 @@
         </nav>
     @endif
 
-    @if ($resource === 'payments')
-        <form method="GET" action="{{ route('resources.index', ['resource' => 'payments']) }}" class="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <input type="hidden" name="per_page" value="{{ $perPage }}"><div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_10rem_10rem_auto] lg:items-end">
-                <div><label for="payment-search" class="mb-1.5 block text-sm font-semibold text-slate-700">Cliente, recibo u operación</label><input id="payment-search" type="search" name="q" value="{{ $paymentFilters['q'] }}" maxlength="150" placeholder="Nombre, documento, recibo u operación" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"></div>
-                <div><label for="payment-from" class="mb-1.5 block text-sm font-semibold text-slate-700">Desde</label><input id="payment-from" type="date" name="from" value="{{ $paymentFilters['from'] }}" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"></div>
-                <div><label for="payment-to" class="mb-1.5 block text-sm font-semibold text-slate-700">Hasta</label><input id="payment-to" type="date" name="to" value="{{ $paymentFilters['to'] }}" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"></div>
-                <div class="flex gap-2"><button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">Buscar</button>@if (array_filter($paymentFilters))<a href="{{ route('resources.index', ['resource' => 'payments']) }}" class="rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">Limpiar</a>@endif</div>
-            </div>
-            @error('from')<p class="mt-2 text-sm font-medium text-rose-600">{{ $message }}</p>@enderror
-            @error('to')<p class="mt-2 text-sm font-medium text-rose-600">{{ $message }}</p>@enderror
-        </form>
-    @endif
-
-    @if (in_array($resource, ['invoices', 'payments', 'incomes']))
-        <p class="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">{{ match ($resource) { 'invoices' => 'Cuota: lo que el titular debe por el servicio de cada mes. Para cobrarla, usa Pagos.', 'payments' => 'Recibo: comprobante del dinero cobrado. Si necesitas corregir un pago, anúlalo con un motivo y registra el correcto.', default => 'Otros ingresos: dinero que no procede de cobrar cuotas o multas. Las cobranzas aparecen automáticamente en caja; no las vuelvas a registrar aquí.' } }}</p>
+    @if (in_array($resource, ['invoices', 'incomes']))
+        <p class="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">{{ match ($resource) { 'invoices' => 'Cuota: lo que el titular debe por el servicio de cada mes. Para cobrarla, usa Pagos.', default => 'Otros ingresos: dinero que no procede de cobrar cuotas o multas. Las cobranzas aparecen automáticamente en caja; no las vuelvas a registrar aquí.' } }}</p>
     @endif
     @if ($resource === 'customers')
         <form method="GET" class="mb-6 flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-4">
@@ -173,12 +158,6 @@
                             @endforeach
                             <td class="whitespace-nowrap px-5 py-3.5 text-right">
                                 <a href="{{ route('resources.show', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="text-sm font-semibold text-slate-600 hover:text-sky-700">Ver</a>
-                                @if ($resource === 'payments')
-                                    <a href="{{ route('receipts.thermal', ['payment' => $record->getKey()]) }}" target="_blank" rel="noopener" class="ml-3 text-sm font-semibold text-sky-700 hover:text-sky-800">Imprimir</a>
-                                    @if ($record->status === App\Models\Payment::STATUS_ACTIVE && $canAnnulPayments)
-                                        <a href="{{ route('receipts.annul-form', ['payment' => $record->getKey()]) }}" class="ml-3 text-sm font-semibold text-rose-700 hover:text-rose-800">Anular</a>
-                                    @endif
-                                @endif
                                 @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'edit'))
                                     <a href="{{ route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="ml-3 text-sm font-semibold text-sky-700 hover:text-sky-800">{{ $resource === 'rates' ? 'Nueva versión' : 'Editar' }}</a>
                                 @endunless

@@ -21,7 +21,7 @@ final class SpanishRoutes
     public const REPORTS = [
         'cash-flow' => 'flujo-de-caja', 'annual-balance' => 'balance-anual',
         'payment-concepts-monthly' => 'conceptos-de-pago-mensuales', 'payment-concepts-annual' => 'conceptos-de-pago-anuales',
-        'service-waivers' => 'condonaciones-de-servicio', 'customer-payment-history' => 'historial-de-pagos', 'debtors' => 'morosos', 'debt-aging' => 'antiguedad-de-deuda',
+        'late-fee-fine-waivers-annual' => 'condonaciones-anuales-de-moras-y-multas', 'service-waivers' => 'condonaciones-de-servicio', 'customer-payment-history' => 'historial-de-pagos', 'debtors' => 'morosos', 'debt-aging' => 'antiguedad-de-deuda',
         'payment-methods' => 'recaudacion-por-medio-de-pago', 'service-register' => 'padron-de-conexiones',
         'attendance' => 'asistencias', 'work-exemptions' => 'exonerados-de-faenas',
     ];

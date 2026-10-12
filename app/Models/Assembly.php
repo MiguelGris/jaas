@@ -27,6 +27,9 @@ class Assembly extends JassModel
 
         static::updating(function (self $assembly): void {
             if (($assembly->isDirty('status') && $assembly->status !== 'HELD') || $assembly->isDirty('absence_fine')) {
+                if ($assembly->fines()->whereHas('waivers')->exists()) {
+                    throw ValidationException::withMessages(['status' => 'Esta asamblea tiene multas condonadas. No se puede reabrir, cancelar ni cambiar su importe porque se modificaría la deuda histórica de la campaña.']);
+                }
                 if ($assembly->fines()->whereHas('paymentAllocations')->exists()) {
                     throw ValidationException::withMessages([
                         'status' => 'Esta asamblea tiene multas cobradas. Revisa y anula los recibos correspondientes antes de reabrirla, cancelarla o cambiar la multa.',

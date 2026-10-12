@@ -204,18 +204,16 @@ final class PaymentConceptService
         return $parts;
     }
 
-    private function partsForAllocation(PaymentAllocation $allocation, float $amount, float $offset): array
+    private function partsForAllocation(PaymentAllocation $allocation, float $amount, float $offset, ?Invoice $invoice = null): array
     {
         if ($allocation->concept === 'SERVICE' && $allocation->service_component !== null) {
             return ['services' => (float) $allocation->service_component, 'fines' => (float) $allocation->fine_component, 'late_fees' => 0.0];
         }
-        if ($allocation->concept === 'SERVICE') {
-            return $this->splitInvoiceAmount($allocation->invoice, $amount, $offset);
-        }
         if ($allocation->concept === 'LATE_FEE') {
             return ['services' => 0.0, 'fines' => 0.0, 'late_fees' => $amount];
         }
-        return $this->splitInvoiceAmount($allocation->invoice, $amount, $offset);
+
+        return $this->splitInvoiceAmount($invoice ?? $allocation->invoice, $amount, $offset);
     }
 
     /** Historical combined payments retain their original distribution. */
@@ -225,21 +223,29 @@ final class PaymentConceptService
         $offset = 0.0;
         $settledAt = null;
         $coverageEvents = collect();
-        $allocations = $invoice->paymentAllocations()->with('payment')->get()
+        $allocations = ($invoice->relationLoaded('paymentAllocations') ? $invoice->getRelation('paymentAllocations')->loadMissing('payment') : $invoice->paymentAllocations()->with('payment')->get())
             ->sortBy(fn ($row) => sprintf('%s-%012d-%012d', $row->payment->paid_at->format('YmdHis.u'), $row->payment_id, $row->id));
         foreach ($allocations as $allocation) {
-            $parts = $this->partsForAllocation($allocation, (float) $allocation->amount, $offset);
+            $allocation->setRelation('invoice', $invoice);
+            $parts = $this->partsForAllocation($allocation, (float) $allocation->amount, $offset, $invoice);
             $this->add($totals, $parts);
-            if ($allocation->concept !== 'LATE_FEE') $offset += (float) $allocation->amount;
-            $coverageEvents->push(['date' => $allocation->payment->paid_at, 'amount' => $parts['services'] + $parts['fines']]);
+            if ($allocation->concept !== 'LATE_FEE') {
+                $offset += (float) $allocation->amount;
+            }
+            $coverageEvents->push(['date' => $allocation->payment->paid_at, 'amount' => $parts['services']]);
         }
-        $waivers = $invoice->serviceWaivers()->get();
-        foreach ($waivers as $waiver) $coverageEvents->push(['date' => $waiver->created_at, 'amount' => (float) $waiver->amount]);
+        $waivers = $invoice->relationLoaded('serviceWaivers') ? $invoice->getRelation('serviceWaivers') : $invoice->serviceWaivers()->get();
+        foreach ($waivers as $waiver) {
+            $coverageEvents->push(['date' => $waiver->created_at, 'amount' => (float) $waiver->amount]);
+        }
         $covered = 0.0;
         foreach ($coverageEvents->sortBy(fn ($event) => $event['date']->format('YmdHis.u')) as $event) {
             $covered = round($covered + $event['amount'], 2);
-            if ($settledAt === null && $covered >= round((float) $invoice->rate + (float) $invoice->fines, 2)) $settledAt = $event['date'];
+            if ($settledAt === null && $covered >= round((float) $invoice->rate, 2)) {
+                $settledAt = $event['date'];
+            }
         }
+
         return $this->rounded($totals) + ['service_settled_at' => $settledAt, 'service_waived' => round((float) $waivers->sum('amount'), 2)];
     }
 

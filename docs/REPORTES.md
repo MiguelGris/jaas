@@ -167,3 +167,8 @@ El historial de pagos por cliente también incluye los recibos de servicio condo
 Conceptos mensuales y anuales incluyen Servicio condonado (sin ingreso), calculado por la fecha de la condonación. Ese importe no se suma a la recaudación, entradas ni saldo de caja. El periodo de la cuota puede ser distinto del mes en que se condonó.
 
 El reporte Condonaciones de servicio, disponible en Excel y PDF, detalla fecha, recibo, cliente, cuota mensual, importe condonado, saldo después de la operación, motivo, usuario y campaña. Permite consultar el año de condonación. Los recibos, pagos y movimientos de caja históricos se conservan.
+
+
+## Condonaciones anuales de moras y multas
+
+En el centro de reportes se puede elegir un año y descargar Excel o PDF con un resumen de los doce meses, totales separados de moras y multas, total condonado, clientes y operaciones. El detalle incluye fecha, tipo y código de deuda, cliente, motivo, usuario que autorizó y campaña o condonación individual. Se agrupa por la fecha de la condonación, aunque la deuda corresponda a otro año. Los importes son condonados, no recaudados, y no modifican los reportes de caja.

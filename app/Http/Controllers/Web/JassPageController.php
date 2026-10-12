@@ -215,7 +215,7 @@ final class JassPageController extends Controller
         ]);
         $listSearch = trim((string) ($listFilters['q'] ?? ''));
         $perPage = (int) ($listFilters['per_page'] ?? 10);
-        if (! in_array($resource, ['customers', 'payments', 'audit-logs'], true) && $listSearch !== '') {
+        if (! in_array($resource, ['customers', 'audit-logs'], true) && $listSearch !== '') {
             foreach (preg_split('/\s+/', $listSearch, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $term) {
                 $records->where(function ($query) use ($columns, $term): void {
                     foreach ($columns as $name => $field) {
@@ -239,12 +239,10 @@ final class JassPageController extends Controller
                 });
             }
         }
-        $paymentFilters = ['q' => '', 'from' => '', 'to' => ''];
         $invoiceState = '';
         $customerSearch = '';
         if ($resource === 'customers') {
-            $data = $request->validate(['q' => ['nullable', 'string', 'max:150']]);
-            $customerSearch = trim((string) ($data['q'] ?? ''));
+            $customerSearch = $listSearch;
             foreach (preg_split('/\s+/', $customerSearch, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $term) {
                 $records->where(fn ($query) => $query->where('first_name', 'like', "%{$term}%")->orWhere('last_name', 'like', "%{$term}%")->orWhere('business_name', 'like', "%{$term}%")->orWhere('national_id', 'like', "%{$term}%")->orWhere('customer_code', 'like', "%{$term}%"));
             }
@@ -294,8 +292,8 @@ final class JassPageController extends Controller
                 if (str_contains(mb_strtolower($term), 'condona') || str_contains(mb_strtolower($term), 'campaña')) {
                     $records->whereIn('table_name', ['waiver_campaigns', 'late_fee_waivers', 'fine_waivers', 'service_waivers']);
                 } else {
-                $tables = collect(self::definitions())->filter(fn ($d) => str_contains(mb_strtolower($d['label']), mb_strtolower($term)))->map(fn ($d) => (new $d['model'])->getTable())->values()->all();
-                $records->where(fn ($q) => $q->where('table_name', 'like', '%'.$term.'%')->orWhereIn('table_name', $tables)->orWhere('record_id', $term));
+                    $tables = collect(self::definitions())->filter(fn ($d) => str_contains(mb_strtolower($d['label']), mb_strtolower($term)))->map(fn ($d) => (new $d['model'])->getTable())->values()->all();
+                    $records->where(fn ($q) => $q->where('table_name', 'like', '%'.$term.'%')->orWhereIn('table_name', $tables)->orWhere('record_id', $term));
                 }
             }
         }
@@ -304,7 +302,7 @@ final class JassPageController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
-        return view('resources.index', compact('resource', 'definition', 'columns', 'records', 'paymentFilters', 'invoiceState', 'customerSearch', 'auditFilters', 'auditUsers', 'listSearch', 'perPage'));
+        return view('resources.index', compact('resource', 'definition', 'columns', 'records', 'invoiceState', 'customerSearch', 'auditFilters', 'auditUsers', 'listSearch', 'perPage'));
     }
 
     public function create(Request $request, string $resource): View

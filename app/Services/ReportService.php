@@ -37,6 +37,7 @@ final class ReportService
             'payment-concepts-monthly' => $this->paymentConceptsMonthly($filters['month'] ?? null),
             'payment-concepts-annual' => $this->paymentConceptsAnnual($filters['year'] ?? null),
             'service-waivers' => $this->serviceWaivers($filters),
+            'late-fee-fine-waivers-annual' => $this->lateFeeFineWaiversAnnual($filters),
             'customer-payment-history' => $this->customerPaymentHistory(
                 (int) ($filters['customer_id'] ?? 0),
                 $filters['period_type'] ?? null,
@@ -356,6 +357,42 @@ final class ReportService
         return $this->document('Condonaciones de servicio', 'Ejercicio '.$year.' · importes condonados, sin ingresos de caja', 'condonaciones-servicio-'.$year,
             ['Fecha', 'Recibo', 'Cliente', 'Titular', 'Cuota mensual', 'Código de cuota', 'Condonado', 'Saldo después', 'Motivo', 'Autorizado por', 'Campaña'], $rows->all(),
             ['Recibos de condonación' => $waivers->count(), 'Clientes' => $waivers->pluck('invoice.connection.property.customer.id')->unique()->count(), 'Servicio condonado (sin ingreso)' => round((float) $waivers->sum('amount'), 2)], [6, 7]);
+    }
+
+    private function lateFeeFineWaiversAnnual(array $filters): array
+    {
+        $year = (int) ($filters['year'] ?? now()->year);
+        $lateFees = \App\Models\LateFeeWaiver::query()->whereYear('created_at', $year)
+            ->when(! empty($filters['customer_id']), fn ($q) => $q->whereHas('invoice.connection.property', fn ($q) => $q->where('customer_id', $filters['customer_id'])))
+            ->with(['invoice.connection.property.customer', 'invoice.billingPeriod', 'user'])->get();
+        $fines = \App\Models\FineWaiver::query()->whereYear('created_at', $year)
+            ->when(! empty($filters['customer_id']), fn ($q) => $q->whereHas('fine', fn ($q) => $q->where('customer_id', $filters['customer_id'])))
+            ->with(['fine.customer', 'user'])->get();
+        $entries = $lateFees->map(function ($waiver): array {
+            $customer = $waiver->invoice->connection->property->customer;
+            return ['date' => $waiver->created_at, 'type' => 'Mora', 'code' => $waiver->invoice->invoice_code, 'customer_id' => $customer->id, 'customer_code' => $customer->customer_code,
+                'customer' => $customer->display_name, 'detail' => $waiver->invoice->cycleLabel(), 'amount' => (float) $waiver->amount, 'reason' => $waiver->reason,
+                'user' => $waiver->user->name, 'campaign' => $waiver->campaign_id ? '#'.$waiver->campaign_id : 'Individual', 'key' => 'mora:'.$waiver->id];
+        })->concat($fines->map(function ($waiver): array {
+            $customer = $waiver->fine->customer;
+            return ['date' => $waiver->created_at, 'type' => 'Multa', 'code' => $waiver->fine->fine_code, 'customer_id' => $customer->id, 'customer_code' => $customer->customer_code,
+                'customer' => $customer->display_name, 'detail' => $waiver->fine->reason, 'amount' => (float) $waiver->amount, 'reason' => $waiver->reason,
+                'user' => $waiver->user->name, 'campaign' => '#'.$waiver->campaign_id, 'key' => 'fine:'.$waiver->id];
+        }))->sortBy(fn ($entry) => $entry['date']->format('YmdHis.u').'-'.$entry['key'])->values();
+        $monthly = collect(range(1, 12))->map(function ($month) use ($year, $entries): array {
+            $items = $entries->filter(fn ($entry) => $entry['date']->month === $month);
+            $mora = round((float) $items->where('type', 'Mora')->sum('amount'), 2);
+            $fine = round((float) $items->where('type', 'Multa')->sum('amount'), 2);
+            return [Carbon::create($year, $month, 1)->locale('es')->translatedFormat('F'), $mora, $fine, round($mora + $fine, 2)];
+        });
+        $rows = $entries->map(fn ($entry) => [$entry['date']->format('d/m/Y H:i'), $entry['type'], $entry['code'], $entry['customer_code'], $entry['customer'],
+            $entry['detail'], $entry['amount'], $entry['reason'], $entry['user'], $entry['campaign']])->all();
+        return $this->document('Condonaciones anuales de moras y multas', 'Ejercicio '.$year.' · por fecha de condonación · sin movimientos de caja', 'condonaciones-moras-multas-'.$year,
+            ['Fecha', 'Tipo', 'Deuda', 'Cliente', 'Titular', 'Detalle', 'Condonado', 'Motivo', 'Autorizado por', 'Campaña'], $rows,
+            ['Moras condonadas' => round((float) $monthly->sum(1), 2), 'Multas condonadas' => round((float) $monthly->sum(2), 2), 'Total condonado' => round((float) $monthly->sum(3), 2),
+                'Clientes' => $entries->pluck('customer_id')->unique()->count(), 'Operaciones de condonación' => $entries->count()], [6],
+            [['title' => 'Resumen mensual', 'headers' => ['Mes', 'Moras condonadas', 'Multas condonadas', 'Total condonado'], 'rows' => $monthly->all(), 'currency_columns' => [1, 2, 3]]])
+            + ['detail_title' => 'Detalle de condonaciones'];
     }
 
     private function debtAging(): array

@@ -31,7 +31,7 @@
                 <thead><tr>@foreach ($table['headers'] as $header)<th>{{ $header }}</th>@endforeach</tr></thead>
                 <tbody>
                     @forelse ($table['rows'] as $row)
-                        <tr>@foreach ($row as $value)<td>{{ $value }}</td>@endforeach</tr>
+                        <tr>@foreach ($row as $index => $value)<td @class(['number' => in_array($index, $table['currency_columns'] ?? [])])>@if(in_array($index, $table['currency_columns'] ?? []))S/ {{ number_format((float)$value,2) }}@else{{ $value }}@endif</td>@endforeach</tr>
                     @empty
                         <tr><td colspan="{{ count($table['headers']) }}">No hay datos para este resumen.</td></tr>
                     @endforelse
@@ -40,7 +40,7 @@
         </section>
     @endforeach
     @if (($report['intro_tables'] ?? []) !== [])
-        <h2>Detalle de asistentes e inasistentes</h2>
+        <h2>{{ $report['detail_title'] ?? 'Detalle de asistentes e inasistentes' }}</h2>
     @endif
     <table>
         <thead><tr>@foreach ($report['headers'] as $header)<th>{{ $header }}</th>@endforeach</tr></thead>
@@ -53,7 +53,7 @@
         </tbody>
     </table>
     @if ($report['summary'] !== [])
-        <table class="summary"><tbody>@foreach ($report['summary'] as $label => $value)<tr><td>{{ $label }}</td><td>@if (str_contains(Str::lower($label), 'recaudación') || str_contains(Str::lower($label), 'entradas') || str_contains(Str::lower($label), 'deuda') || str_contains(Str::lower($label), 'cobros') || str_contains(Str::lower($label), 'ingresos') || str_contains(Str::lower($label), 'egresos') || str_contains(Str::lower($label), 'saldo'))S/ {{ number_format((float) $value, 2) }}@else{{ $value }}@endif</td></tr>@endforeach</tbody></table>
+        <table class="summary"><tbody>@foreach ($report['summary'] as $label => $value)<tr><td>{{ $label }}</td><td>@if (str_contains(Str::lower($label), 'recaudación') || str_contains(Str::lower($label), 'entradas') || str_contains(Str::lower($label), 'deuda') || str_contains(Str::lower($label), 'cobros') || str_contains(Str::lower($label), 'ingresos') || str_contains(Str::lower($label), 'egresos') || str_contains(Str::lower($label), 'saldo') || str_contains(Str::lower($label), 'condonad'))S/ {{ number_format((float) $value, 2) }}@else{{ $value }}@endif</td></tr>@endforeach</tbody></table>
     @endif
 </body>
 </html>
