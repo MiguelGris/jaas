@@ -57,6 +57,188 @@ class BillingCycleMoraTest extends TestCase
         return [$user, $customers, $fee, $method];
     }
 
+    public function test_service_can_be_paid_without_mora_and_settled_cycles_stop_accruing(): void
+    {
+        [$user, $customers, , $method] = $this->context();
+        $customer = $customers->first();
+        $billing = app(BillingService::class);
+        foreach (['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'] as $month) $billing->generateForMonth($month);
+        $firstCycle = Invoice::query()->whereDate('cycle_starts_on', '2026-01-01')->orderBy('id')->get();
+        $this->travelTo(Carbon::parse('2026-05-10 10:00:00'));
+        $details = ['payment_method_id' => $method->id, 'separate_late_fees' => true, 'late_fees' => []];
+        $first = app(PaymentCollectionService::class)->collect($customer, [$firstCycle[0]->id], [], $details, $user);
+        $this->assertSame('15.00', $first->amount);
+        $this->travelTo(Carbon::parse('2026-06-10 10:00:00'));
+        $last = app(PaymentCollectionService::class)->collect($customer, [$firstCycle[1]->id, $firstCycle[2]->id], [], $details, $user);
+        $this->assertSame('30.00', $last->amount);
+        $this->travelTo(Carbon::parse('2026-10-12 10:00:00'));
+        $debt = app(DebtService::class)->pendingForCustomer($customer);
+        $old = $debt['invoices']->whereIn('id', $firstCycle->pluck('id'));
+        $this->assertSame(0.0, (float) $old->sum('service_balance'));
+        $this->assertSame(4.0, (float) $old->sum('late_fee_balance'));
+        $this->assertSame(6.0, (float) $debt['invoices']->whereNotIn('id', $firstCycle->pluck('id'))->sum('late_fee_balance'));
+        $this->actingAs($user)->get(route('collections.create', ['customer' => $customer->id]))
+            ->assertOk()->assertSee('Moras pendientes')->assertSee('Condonar moras por campaña')
+            ->assertViewHas('invoices', fn ($rows) => $rows->sum('service_balance') === 45.0);
+        $this->assertSame(0.0, app(PaymentConceptService::class)->totals('2026-01-01', '2026-12-31')['late_fees']);
+        app(PaymentCancellationService::class)->cancel($last, $user, 'Reabrir servicio del ciclo');
+        $this->assertGreaterThan(4.0, (float) app(DebtService::class)->pendingForCustomer($customer)['invoices']->whereIn('id', $firstCycle->pluck('id'))->sum('late_fee_balance'));
+    }
+
+    public function test_separate_fee_payment_waivers_and_annulment_preserve_service_and_cash(): void
+    {
+        [$user, $customers, , $method] = $this->context();
+        $customer = $customers->first();
+        foreach (['2026-01', '2026-02', '2026-03'] as $month) app(BillingService::class)->generateForMonth($month);
+        $this->travelTo(Carbon::parse('2026-10-12 10:00:00'));
+        $ids = Invoice::query()->pluck('id')->all();
+        $this->actingAs($user)->post(route('collections.store'), ['customer_id' => $customer->id, 'invoices' => $ids, 'payment_method_id' => $method->id, 'separate_late_fees' => 1])
+            ->assertSessionHasNoErrors();
+        $debt = app(DebtService::class)->pendingForCustomer($customer);
+        $this->assertSame(12.0, $debt['total']);
+        $fee = $debt['invoices']->first();
+        $waivers = app(\App\Services\LateFeeWaiverService::class);
+        $this->assertSame(6.0, $waivers->waive($customer, [$fee->id], 'percentage', 50, 'Campaña de recaudación', $user));
+        $this->assertSame(6.0, app(DebtService::class)->pendingForCustomer($customer)['total']);
+        $this->assertSame(2.0, $waivers->waive($customer, [$fee->id], 'amount', 2, 'Acuerdo parcial', $user));
+        $this->assertSame(4.0, app(DebtService::class)->pendingForCustomer($customer)['total']);
+        $payment = app(PaymentCollectionService::class)->collect($customer, [], [], ['payment_method_id' => $method->id, 'separate_late_fees' => true, 'late_fees' => [$fee->id]], $user);
+        $this->assertSame('4.00', $payment->amount);
+        $this->assertSame(0.0, app(DebtService::class)->pendingForCustomer($customer)['total']);
+        $totals = app(PaymentConceptService::class)->totals('2026-01-01', '2026-12-31');
+        $this->assertSame(45.0, $totals['services']);
+        $this->assertSame(4.0, $totals['late_fees']);
+        $this->assertSame('Mora', app(PaymentConceptService::class)->forPayment($payment)[0]['category']);
+        $this->travelTo(Carbon::parse('2026-12-01 10:00:00'));
+        app(PaymentCancellationService::class)->cancel($payment, $user, 'Corrección');
+        $this->assertSame(4.0, app(DebtService::class)->pendingForCustomer($customer)['total']);
+        $this->assertSame(4.0, $waivers->waive($customer, [$fee->id], 'all', 0, 'Campaña total', $user));
+        $this->assertSame(0.0, app(DebtService::class)->pendingForCustomer($customer)['total']);
+        $this->assertDatabaseCount('late_fee_waivers', 3);
+        $this->assertSame(3, \App\Models\AuditLog::query()->where('table_name', 'late_fee_waivers')->count());
+        $this->assertSame(0.0, app(PaymentConceptService::class)->totals('2026-01-01', '2026-12-31')['late_fees']);
+    }
+
+    public function test_fee_only_payment_does_not_settle_service_and_waivers_do_not_stop_future_arrears(): void
+    {
+        [$user, $customers, , $method] = $this->context();
+        $customer = $customers->first();
+        foreach (['2026-01', '2026-02', '2026-03'] as $month) app(BillingService::class)->generateForMonth($month);
+        $this->travelTo(Carbon::parse('2026-05-10 10:00:00'));
+        $fee = app(DebtService::class)->pendingForCustomer($customer)['invoices']->first();
+        $payment = app(PaymentCollectionService::class)->collect($customer, [], [], ['payment_method_id' => $method->id, 'separate_late_fees' => true, 'late_fees' => [$fee->id]], $user);
+        $this->assertSame('2.00', $payment->amount);
+        $this->assertSame(45.0, app(DebtService::class)->pendingForCustomer($customer)['total']);
+        $this->travelTo(Carbon::parse('2026-06-10 10:00:00'));
+        $this->assertSame(47.0, app(DebtService::class)->pendingForCustomer($customer)['total']);
+        app(\App\Services\LateFeeWaiverService::class)->waive($customer, [$fee->id], 'all', 0, 'Campaña', $user);
+        $this->travelTo(Carbon::parse('2026-07-10 10:00:00'));
+        $this->assertSame(47.0, app(DebtService::class)->pendingForCustomer($customer)['total']);
+    }
+
+    public function test_service_and_mora_can_share_one_receipt_with_explicit_concepts(): void
+    {
+        [$user, $customers, , $method] = $this->context();
+        foreach (['2026-01', '2026-02', '2026-03'] as $month) app(BillingService::class)->generateForMonth($month);
+        $this->travelTo(Carbon::parse('2026-05-10 10:00:00'));
+        $ids = Invoice::query()->pluck('id')->all();
+        $fee = app(DebtService::class)->pendingForCustomer($customers->first())['invoices']->first();
+        $payment = app(PaymentCollectionService::class)->collect($customers->first(), $ids, [], ['payment_method_id' => $method->id, 'separate_late_fees' => true, 'late_fees' => [$fee->id]], $user);
+        $this->assertSame('47.00', $payment->amount);
+        $this->assertCount(4, $payment->allocations);
+        $this->assertSame(0.0, app(DebtService::class)->pendingForCustomer($customers->first())['total']);
+        $totals = app(PaymentConceptService::class)->totals('2026-01-01', '2026-12-31');
+        $this->assertSame(45.0, $totals['services']);
+        $this->assertSame(2.0, $totals['late_fees']);
+        app(PaymentCancellationService::class)->cancel($payment, $user, 'Corrección');
+        $this->assertSame(47.0, app(DebtService::class)->pendingForCustomer($customers->first())['total']);
+    }
+
+    public function test_waiver_endpoint_rejects_other_customers_excess_amounts_and_unauthorized_users(): void
+    {
+        [$user, $customers] = $this->context(2);
+        foreach (['2026-01', '2026-02', '2026-03'] as $month) app(BillingService::class)->generateForMonth($month);
+        $this->travelTo(Carbon::parse('2026-05-10 10:00:00'));
+        $fee = app(DebtService::class)->pendingForCustomer($customers->first())['invoices']->first();
+        $data = ['customer_id' => $customers->first()->id, 'waiver_invoices' => [$fee->id], 'waiver_mode' => 'amount', 'waiver_value' => 3, 'waiver_reason' => 'Campaña'];
+        $this->actingAs($user)->post(route('collections.waive'), $data)->assertSessionHasErrors('waiver');
+        $data['customer_id'] = $customers->last()->id;
+        $data['waiver_value'] = 1;
+        $this->post(route('collections.waive'), $data)->assertSessionHasErrors('waiver');
+        $this->assertDatabaseCount('late_fee_waivers', 0);
+        $user->role_id = Role::query()->create(['name' => 'CAJERO_SIN_CONDONACION'])->id;
+        $user->save();
+        $this->actingAs($user->fresh())->post(route('collections.waive'), $data)->assertForbidden();
+        $user->role_id = Role::query()->where('name', 'ADMINISTRATOR')->value('id');
+        $user->save();
+        $data['customer_id'] = $customers->first()->id;
+        $data['waiver_mode'] = 'all';
+        $this->actingAs($user->fresh())->post(route('collections.waive'), $data)->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('late_fee_waivers', 1);
+        $this->assertSame(45.0, app(DebtService::class)->pendingForCustomer($customers->first())['total']);
+    }
+
+    public static function monthlyWithoutMoraGrace(): array
+    {
+        return [[0], [1]];
+    }
+
+    #[DataProvider('monthlyWithoutMoraGrace')]
+    public function test_monthly_cycles_with_zero_mora_can_be_generated_paid_and_annulled(int $grace): void
+    {
+        [$user, $customers, $fee, $method] = $this->context();
+        $customer = $customers->first();
+        $fee->update(['monthly_amount' => 0, 'grace_months' => $grace]);
+        $setting = Setting::query()->where('key', 'billing_period_months')->firstOrFail();
+        app(BillingCycleService::class)->saveSetting(['value' => '1'], $setting, '2026-01', $user);
+        foreach (['2026-01', '2026-02', '2026-03'] as $month) {
+            $this->assertSame(1, app(BillingService::class)->generateForMonth($month));
+            $this->assertSame(0, app(BillingService::class)->generateForMonth($month));
+        }
+        $invoices = Invoice::query()->orderBy('period_starts_on')->get();
+        foreach ($invoices as $invoice) {
+            $this->assertSame(1, (int) $invoice->billingPeriod->months);
+            $this->assertSame('0.00', $invoice->cycle_late_fee_amount);
+            $this->assertSame($invoice->period_starts_on->copy()->addMonthsNoOverflow($grace)->endOfMonth()->toDateString(), $invoice->due_on->toDateString());
+            $this->assertSame($invoice->period_starts_on->toDateString(), $invoice->cycle_starts_on->toDateString());
+        }
+        $this->travelTo(Carbon::parse('2026-10-12 10:00:00'));
+        $charges = app(DebtService::class)->pendingForCustomer($customer);
+        $this->assertSame(45.0, $charges['total']);
+        $this->assertSame(0.0, (float) $charges['invoices']->sum('late_fee_balance'));
+        $this->actingAs($user)->get(route('collections.create', ['customer' => $customer->id]))
+            ->assertOk()->assertDontSee('Moras pendientes')->assertDontSee('Condonar moras por campaña');
+        $this->post(route('collections.store'), ['customer_id' => $customer->id, 'invoices' => $invoices->pluck('id')->all(), 'payment_method_id' => $method->id, 'separate_late_fees' => 1])
+            ->assertSessionHasNoErrors();
+        $payment = \App\Models\Payment::query()->latest('id')->firstOrFail();
+        $this->assertSame('45.00', $payment->amount);
+        $this->assertSame(0.0, app(DebtService::class)->pendingForCustomer($customer)['total']);
+        $this->travelTo(Carbon::parse('2027-10-12 10:00:00'));
+        app(PaymentCancellationService::class)->cancel($payment, $user, 'Prueba mensual sin mora');
+        $restored = app(DebtService::class)->pendingForCustomer($customer);
+        $this->assertSame(45.0, $restored['total']);
+        $this->assertSame(0.0, (float) $restored['invoices']->sum('late_fee_balance'));
+        $this->assertDatabaseCount('late_fee_waivers', 0);
+    }
+
+    public function test_unpaid_demo_seeder_is_repeatable_and_only_bills_its_demo_customer(): void
+    {
+        [, $customers] = $this->context();
+        $this->seed(\Database\Seeders\DemoUnpaidCyclesSeeder::class);
+        $demo = Customer::query()->where('notes', 'CLIENTE_DE_PRUEBA_CICLOS_IMPAGOS_2026')->firstOrFail();
+        $this->assertSame('Prueba Ciclos impagos', $demo->display_name);
+        $this->assertDatabaseCount('invoices', 6);
+        $this->assertSame(0, Invoice::query()->whereHas('connection.property', fn ($q) => $q->where('customer_id', $customers->first()->id))->count());
+        $this->seed(\Database\Seeders\DemoUnpaidCyclesSeeder::class);
+        $this->assertDatabaseCount('invoices', 6);
+        $this->assertSame(1, Customer::query()->where('notes', 'CLIENTE_DE_PRUEBA_CICLOS_IMPAGOS_2026')->count());
+        $this->travelTo(Carbon::parse('2026-10-12 10:00:00'));
+        $debt = app(DebtService::class)->pendingForCustomer($demo);
+        $this->assertSame(90.0, (float) $debt['invoices']->sum('service_balance'));
+        $this->assertSame(18.0, (float) $debt['invoices']->sum('late_fee_balance'));
+        $this->assertSame(108.0, $debt['total']);
+    }
+
     public function test_cycle_preview_and_generation_are_complete_and_idempotent(): void
     {
         [$user] = $this->context(2);

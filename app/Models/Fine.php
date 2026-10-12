@@ -25,6 +25,11 @@ class Fine extends JassModel
         return $this->belongsTo(Assembly::class);
     }
 
+    public function waivers()
+    {
+        return $this->hasMany(FineWaiver::class);
+    }
+
     public function paymentAllocations()
     {
         return $this->hasMany(PaymentAllocation::class)

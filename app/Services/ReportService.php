@@ -36,6 +36,7 @@ final class ReportService
             'annual-balance' => $this->annualBalance($filters['year'] ?? null),
             'payment-concepts-monthly' => $this->paymentConceptsMonthly($filters['month'] ?? null),
             'payment-concepts-annual' => $this->paymentConceptsAnnual($filters['year'] ?? null),
+            'service-waivers' => $this->serviceWaivers($filters),
             'customer-payment-history' => $this->customerPaymentHistory(
                 (int) ($filters['customer_id'] ?? 0),
                 $filters['period_type'] ?? null,
@@ -182,6 +183,7 @@ final class ReportService
             ['Moras', $concepts['late_fees']],
             ['Otros ingresos', $otherIncome],
             ['Egresos', $expenses],
+            ['Servicio condonado (sin ingreso)', round((float) \App\Models\ServiceWaiver::query()->whereBetween('created_at', [$start, $end])->sum('amount'), 2)],
         ];
 
         return $this->document(
@@ -192,6 +194,7 @@ final class ReportService
                 'Entradas totales' => $totalIncome,
                 'Egresos totales' => $expenses,
                 'Saldo del período' => round($totalIncome - $expenses, 2),
+                'Servicio condonado (sin ingreso)' => $rows[5][1],
             ], [1],
         );
     }
@@ -200,6 +203,7 @@ final class ReportService
     {
         $year = (int) ($selectedYear ?: now()->year);
         $concepts = $this->paymentConcepts->totalsByMonth($year);
+        $serviceWaivers = \App\Models\ServiceWaiver::query()->whereYear('created_at', $year)->get()->groupBy(fn ($waiver) => $waiver->created_at->month)->map(fn ($waivers) => round((float) $waivers->sum('amount'), 2));
         $incomes = Income::query()
             ->whereYear('received_on', $year)
             ->get()
@@ -210,7 +214,7 @@ final class ReportService
             ->get()
             ->groupBy(fn (Expense $expense): int => $expense->incurred_on->month)
             ->map(fn (Collection $items): float => round((float) $items->sum('amount'), 2));
-        $rows = collect(range(1, 12))->map(function (int $month) use ($year, $concepts, $incomes, $expenses): array {
+        $rows = collect(range(1, 12))->map(function (int $month) use ($year, $concepts, $incomes, $expenses, $serviceWaivers): array {
             $services = $concepts[$month]['services'];
             $fines = $concepts[$month]['fines'];
             $lateFees = $concepts[$month]['late_fees'];
@@ -225,6 +229,7 @@ final class ReportService
                 $otherIncome,
                 $expense,
                 round($services + $fines + $lateFees + $otherIncome - $expense, 2),
+                (float) $serviceWaivers->get($month, 0),
             ];
         });
         $totalServices = round((float) $rows->sum(1), 2);
@@ -235,7 +240,7 @@ final class ReportService
 
         return $this->document(
             'Resumen anual por concepto', "Ejercicio {$year}", "conceptos-anual-{$year}",
-            ['Mes', 'Servicios', 'Multas', 'Moras', 'Otros ingresos', 'Egresos', 'Saldo'], $rows->all(),
+            ['Mes', 'Servicios', 'Multas', 'Moras', 'Otros ingresos', 'Egresos', 'Saldo', 'Servicio condonado (sin ingreso)'], $rows->all(),
             [
                 'Servicios' => $totalServices,
                 'Multas' => $totalFines,
@@ -243,7 +248,8 @@ final class ReportService
                 'Otros ingresos' => $totalOtherIncome,
                 'Egresos' => $totalExpenses,
                 'Saldo anual' => round($totalServices + $totalFines + $totalLateFees + $totalOtherIncome - $totalExpenses, 2),
-            ], [1, 2, 3, 4, 5, 6],
+                'Servicio condonado (sin ingreso)' => round((float) $rows->sum(7), 2),
+            ], [1, 2, 3, 4, 5, 6, 7],
         );
     }
 
@@ -291,8 +297,20 @@ final class ReportService
                 $payment->status === Payment::STATUS_VOIDED ? 'Anulado' : 'Válido',
                 (float) $payment->amount,
                 $payment->user?->name ?? '—',
+                0.0,
+                'sort_at' => $payment->paid_at?->format('YmdHis.u') ?? '',
             ];
         });
+        $waivers = \App\Models\ServiceWaiver::query()->whereHas('invoice.connection.property', fn ($q) => $q->where('customer_id', $customer->id))
+            ->when($startsAt, fn ($q) => $q->where('created_at', '>=', $startsAt))->when($endsAt, fn ($q) => $q->where('created_at', '<=', $endsAt))
+            ->with(['invoice', 'user'])->orderBy('created_at')->orderBy('id')->get();
+        $waiverRows = $waivers->map(fn ($waiver) => [
+            $waiver->created_at->format('d/m/Y H:i'), $waiver->receipt_code, '—', $customer->national_id ?? '—', $customer->display_name,
+            'Condonación', 'Servicio condonado '.$waiver->invoice->period_starts_on->format('m/Y').' · '.$waiver->reason,
+            (float) $waiver->balance_after <= 0 ? 'Condonado' : 'Condonado parcialmente', 0.0, $waiver->user->name, (float) $waiver->amount,
+            'sort_at' => $waiver->created_at->format('YmdHis.u'),
+        ]);
+        $rows = $rows->concat($waiverRows)->sortBy('sort_at')->map(fn ($row) => collect($row)->except('sort_at')->values()->all())->values();
         $validPayments = $payments->where('status', Payment::STATUS_ACTIVE);
         $period = match ($periodType) {
             'year' => 'Año '.$year,
@@ -311,14 +329,33 @@ final class ReportService
 
         return $this->document(
             'Historial de pagos por cliente', "{$customerIdentity} · {$period}", 'historial-pagos-'.($customer->customer_code ?: $customer->getKey()).'-'.now()->format('Ymd'),
-            ['Fecha', 'Recibo', 'Operación', $customer->document_label, 'Cliente', 'Medio', 'Conceptos', 'Estado', 'Importe', 'Registrado por'], $rows->all(),
+            ['Fecha', 'Recibo', 'Operación', $customer->document_label, 'Cliente', 'Medio', 'Conceptos', 'Estado', 'Importe cobrado', 'Registrado por', 'Servicio condonado'], $rows->all(),
             [
                 'Cliente' => $customerName,
                 'Pagos válidos' => $validPayments->count(),
                 'Pagos anulados' => $payments->where('status', Payment::STATUS_VOIDED)->count(),
                 'Total válido' => round((float) $validPayments->sum('amount'), 2),
-            ], [8],
+                'Recibos de condonación' => $waivers->count(),
+                'Servicio condonado (sin ingreso)' => round((float) $waivers->sum('amount'), 2),
+            ], [8, 10],
         );
+    }
+
+    private function serviceWaivers(array $filters): array
+    {
+        $year = (int) ($filters['year'] ?? now()->year);
+        $waivers = \App\Models\ServiceWaiver::query()->whereYear('created_at', $year)
+            ->when(! empty($filters['customer_id']), fn ($q) => $q->whereHas('invoice.connection.property', fn ($q) => $q->where('customer_id', $filters['customer_id'])))
+            ->with(['invoice.connection.property.customer', 'user'])->orderBy('created_at')->orderBy('id')->get();
+        $rows = $waivers->map(function ($waiver): array {
+            $customer = $waiver->invoice->connection->property->customer;
+            return [$waiver->created_at->format('d/m/Y H:i'), $waiver->receipt_code, $customer->customer_code, $customer->display_name,
+                $waiver->invoice->period_starts_on->format('m/Y'), $waiver->invoice->invoice_code, (float) $waiver->amount,
+                (float) $waiver->balance_after, $waiver->reason, $waiver->user->name, $waiver->campaign_id ? '#'.$waiver->campaign_id : 'Individual'];
+        });
+        return $this->document('Condonaciones de servicio', 'Ejercicio '.$year.' · importes condonados, sin ingresos de caja', 'condonaciones-servicio-'.$year,
+            ['Fecha', 'Recibo', 'Cliente', 'Titular', 'Cuota mensual', 'Código de cuota', 'Condonado', 'Saldo después', 'Motivo', 'Autorizado por', 'Campaña'], $rows->all(),
+            ['Recibos de condonación' => $waivers->count(), 'Clientes' => $waivers->pluck('invoice.connection.property.customer.id')->unique()->count(), 'Servicio condonado (sin ingreso)' => round((float) $waivers->sum('amount'), 2)], [6, 7]);
     }
 
     private function debtAging(): array

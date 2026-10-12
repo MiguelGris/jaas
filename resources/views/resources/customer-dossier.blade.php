@@ -1,6 +1,6 @@
 <section class="mb-6 rounded-xl border border-slate-200 bg-white p-5">
     <h2 class="text-xl font-bold">Ficha del titular: {{ $record->display_name }}</h2>
-    <p class="mt-2">Deuda pendiente: <strong>S/ {{ number_format($customerCharges['total'], 2) }}</strong> · {{ $customerCharges['invoices']->count() }} cuotas y {{ $customerCharges['fines']->count() }} multas.</p>
+    <p class="mt-2">Deuda pendiente: <strong>S/ {{ number_format($customerCharges['total'], 2) }}</strong> · {{ $customerCharges['invoices']->filter(fn ($invoice) => $invoice->service_balance > 0)->count() }} cuotas, {{ $customerCharges['invoices']->filter(fn ($invoice) => $invoice->late_fee_balance > 0)->count() }} moras y {{ $customerCharges['fines']->count() }} multas.</p>
     @if ($canAnnulPayment)<a class="mt-3 inline-block rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white" href="{{ route('collections.create', ['customer' => $record->id]) }}">Cobrar y entregar recibo</a>@endif
     <h3 class="mt-5 font-bold">Casas, locales y servicios</h3>
     @forelse ($record->properties as $property)

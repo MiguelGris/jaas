@@ -84,7 +84,7 @@ final class AssemblyFineService
             'reason' => 'Inasistencia a la asamblea '.$assembly->assembly_code,
             'amount' => $assembly->absence_fine,
             'generated_on' => $fine->generated_on ?? now()->toDateString(),
-            'status' => $paid >= (float) $assembly->absence_fine ? 'PAID' : 'PENDING',
+            'status' => ($paid + (float) $fine->waivers()->sum('amount')) >= (float) $assembly->absence_fine ? 'PAID' : 'PENDING',
         ]);
         $fine->save();
 
@@ -114,7 +114,7 @@ final class AssemblyFineService
         // Una multa ya cobrada no se elimina: se anula para conservar el recibo,
         // la asignación y el saldo histórico de caja. Solo las pendientes sin
         // pagos pueden eliminarse de forma segura.
-        if ($fine->paymentAllocations()->exists()) {
+        if ($fine->paymentAllocations()->exists() || $fine->waivers()->exists()) {
             if ($fine->status !== 'CANCELLED') {
                 $fine->status = 'CANCELLED';
                 $fine->save();

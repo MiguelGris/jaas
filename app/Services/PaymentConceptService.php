@@ -46,8 +46,8 @@ final class PaymentConceptService
 
             $invoice = $allocation->invoice;
             $period = $invoice->period_starts_on?->format('m/Y') ?? 'Periodo no indicado';
-            $parts = $this->splitInvoiceAmount(
-                $invoice,
+            $parts = $this->partsForAllocation(
+                $allocation,
                 (float) $allocation->amount,
                 $this->previousInvoiceAllocation($allocation, $payment),
             );
@@ -198,10 +198,49 @@ final class PaymentConceptService
 
         $invoiceId = (int) $allocation->invoice_id;
         $offset = $invoiceOffsets[$invoiceId] ?? 0.0;
-        $parts = $this->splitInvoiceAmount($allocation->invoice, $amount, $offset);
-        $invoiceOffsets[$invoiceId] = round($offset + $amount, 2);
+        $parts = $this->partsForAllocation($allocation, $amount, $offset);
+        $invoiceOffsets[$invoiceId] = round($offset + ($allocation->concept === 'LATE_FEE' ? 0 : $amount), 2);
 
         return $parts;
+    }
+
+    private function partsForAllocation(PaymentAllocation $allocation, float $amount, float $offset): array
+    {
+        if ($allocation->concept === 'SERVICE' && $allocation->service_component !== null) {
+            return ['services' => (float) $allocation->service_component, 'fines' => (float) $allocation->fine_component, 'late_fees' => 0.0];
+        }
+        if ($allocation->concept === 'SERVICE') {
+            return $this->splitInvoiceAmount($allocation->invoice, $amount, $offset);
+        }
+        if ($allocation->concept === 'LATE_FEE') {
+            return ['services' => 0.0, 'fines' => 0.0, 'late_fees' => $amount];
+        }
+        return $this->splitInvoiceAmount($allocation->invoice, $amount, $offset);
+    }
+
+    /** Historical combined payments retain their original distribution. */
+    public function paidPartsForInvoice(Invoice $invoice): array
+    {
+        $totals = $this->emptyTotals();
+        $offset = 0.0;
+        $settledAt = null;
+        $coverageEvents = collect();
+        $allocations = $invoice->paymentAllocations()->with('payment')->get()
+            ->sortBy(fn ($row) => sprintf('%s-%012d-%012d', $row->payment->paid_at->format('YmdHis.u'), $row->payment_id, $row->id));
+        foreach ($allocations as $allocation) {
+            $parts = $this->partsForAllocation($allocation, (float) $allocation->amount, $offset);
+            $this->add($totals, $parts);
+            if ($allocation->concept !== 'LATE_FEE') $offset += (float) $allocation->amount;
+            $coverageEvents->push(['date' => $allocation->payment->paid_at, 'amount' => $parts['services'] + $parts['fines']]);
+        }
+        $waivers = $invoice->serviceWaivers()->get();
+        foreach ($waivers as $waiver) $coverageEvents->push(['date' => $waiver->created_at, 'amount' => (float) $waiver->amount]);
+        $covered = 0.0;
+        foreach ($coverageEvents->sortBy(fn ($event) => $event['date']->format('YmdHis.u')) as $event) {
+            $covered = round($covered + $event['amount'], 2);
+            if ($settledAt === null && $covered >= round((float) $invoice->rate + (float) $invoice->fines, 2)) $settledAt = $event['date'];
+        }
+        return $this->rounded($totals) + ['service_settled_at' => $settledAt, 'service_waived' => round((float) $waivers->sum('amount'), 2)];
     }
 
     private function previousInvoiceAllocation(PaymentAllocation $allocation, Payment $payment): float
@@ -212,6 +251,7 @@ final class PaymentConceptService
 
         return round((float) PaymentAllocation::query()
             ->where('invoice_id', $allocation->invoice_id)
+            ->where(fn ($query) => $query->whereNull('concept')->orWhere('concept', '!=', 'LATE_FEE'))
             ->whereHas('payment', function ($query) use ($payment): void {
                 $query->active()->where(function ($before) use ($payment): void {
                     $before->where('paid_at', '<', $payment->paid_at)

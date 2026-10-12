@@ -214,3 +214,37 @@ Las altas, modificaciones y eliminaciones realizadas por usuarios autenticados s
 Los cambios de contraseña se registran con valores protegidos, nunca con el contenido de la contraseña.
 
 El administrador tiene acceso total. Los demás roles dependen de permisos explícitos; además, una cuenta inactiva pierde acceso incluso si conserva rol y permisos.
+
+
+## Cobro separado y condonación de moras
+
+En Registrar pago, el servicio y la mora son cargos seleccionables por separado. Seleccionar un ciclo selecciona sus cuotas de servicio; las moras se marcan en su propia sección. Seleccionar todos incluye servicio, moras y multas.
+
+Pagar todo el servicio emitido de un ciclo detiene la acumulación de su mora en la fecha del último pago de servicio. La mora pendiente permanece como deuda independiente. Los otros ciclos con servicio impago siguen acumulando mora. Anular un pago de servicio puede reabrir ese ciclo y reactivar el cálculo; anular un pago de mora restaura únicamente la mora cobrada.
+
+La condonación está disponible en la cobranza del cliente para administradores y usuarios autorizados a gestionar las reglas de mora (`rates.manage`). Se pueden seleccionar una o varias deudas y condonar todo el saldo, un porcentaje de cada deuda o un importe total aplicado a las más antiguas. Cada operación exige un motivo o campaña y guarda el usuario, fecha, importe y cuota de origen en un historial y en la bitácora.
+
+Una condonación no es un cobro ni suma a caja o a las moras recaudadas de los reportes. No modifica recibos históricos ni permite condonar importes ya cobrados. Si el servicio sigue impago, una campaña condona la deuda existente a esa fecha, sin exonerar la mora futura.
+
+Los pagos históricos combinados mantienen su distribución. Los nuevos pagos separados identifican explícitamente el concepto de cada asignación para que recibos, reportes y anulaciones distingan servicio y mora.
+
+## Campañas de condonación masiva de moras y multas
+
+La opción Administración → Condonación masiva está disponible únicamente para el administrador. La restricción también se valida en el servidor para listar, revisar y aplicar campañas, aunque otro usuario tenga todos los permisos del catálogo.
+
+Se pueden filtrar deudas por cliente, sector, tipo y fecha límite. Las listas permiten 10, 20, 50 o 100 deudas por página. Se puede condonar solo lo marcado en la página o todas las deudas que coincidan con los filtros, incluidas las demás páginas.
+
+Una campaña condona todo el saldo, un porcentaje de cada deuda o un importe por cliente aplicado desde sus deudas seleccionadas más antiguas. En la modalidad por importe, cada cliente recibe hasta el importe indicado, limitado a su saldo seleccionado. Si debe menos, se condona solo su deuda; la diferencia no crea un saldo a favor ni aumenta el importe asignado a otro cliente. Antes de aplicar se muestra una revisión paginada con clientes, deudas, saldo actual, importe condonado y saldo restante. El motivo es obligatorio. La confirmación conserva la selección revisada y vuelve a comprobar los saldos; si algún cobro o condonación los cambió, se rechaza toda la campaña para evitar resultados parciales.
+
+La bitácora registra cada condonación de mora o multa y el resumen de la campaña: administrador, fecha, motivo, clientes, cantidad de deudas y totales separados. Las condonaciones no crean recibos ni ingresos de caja. Los pagos anteriores y el importe original de las multas se conservan; solo se reduce el saldo pendiente. Anular un cobro posterior restaura el importe cobrado, conservando la condonación.
+
+
+## Condonación del servicio y recibos mensuales
+
+Las campañas del administrador permiten seleccionar servicio, moras y multas juntos o filtrar cada concepto. Desde Registrar pago, un usuario autorizado para cobranza (`payments.create`) también puede condonar el servicio de las cuotas seleccionadas del cliente. La condonación masiva sigue reservada al administrador.
+
+Cada cuota afectada genera un recibo mensual de condonación con código propio, periodo, saldo anterior, importe condonado, saldo restante, fecha, motivo y usuario. Indica DEUDA CONDONADA o DEUDA PARCIALMENTE CONDONADA, con dinero recibido S/ 0.00. Puede imprimirse en papel de 58 u 80 mm desde el historial del cliente o los recibos de la campaña.
+
+En condonaciones individuales se rechazan importes superiores al saldo pendiente. En campañas masivas, el importe por cliente se limita automáticamente a la deuda seleccionada de ese cliente, sin rechazar a quienes deben menos. Los porcentajes superiores al 100% se rechazan en ambas modalidades. Los saldos no pueden ser negativos ni convertirse en créditos a favor del cliente. Una condonación no crea un pago ni aumenta caja o recaudación. Los pagos posteriores solo cobran el saldo restante y las anulaciones conservan las condonaciones previas.
+
+Un ciclo cuyo servicio queda totalmente cubierto por pagos, condonaciones o ambos deja de acumular mora en la fecha en que se cubre la última cuota de servicio. Su mora existente permanece pendiente salvo que también se condone o pague. Todas las condonaciones del servicio y sus campañas se registran en la bitácora.

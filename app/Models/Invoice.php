@@ -26,6 +26,8 @@ class Invoice extends JassModel
         ];
     }
 
+    public function serviceWaivers() { return $this->hasMany(ServiceWaiver::class); }
+
     public function cycleKey(): string
     {
         $cycle = app(BillingCycleService::class)->forInvoice($this);

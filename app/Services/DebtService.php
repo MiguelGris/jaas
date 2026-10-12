@@ -23,7 +23,7 @@ final class DebtService
     {
         $date = Carbon::parse($asOf ?? now());
         $invoices = Invoice::query()
-            ->where('status', 'PENDING')
+            ->where('status', '!=', 'CANCELLED')
             ->whereHas('connection.property', fn ($query) => $query->where('customer_id', $customer->getKey()))
             ->with(['connection.property', 'billingPeriod'])
             ->withSum('paymentAllocations', 'amount')
@@ -86,7 +86,7 @@ final class DebtService
         return Customer::query()
             ->where(function ($query) use ($date): void {
                 $query->whereHas('properties.connections.invoices', fn ($invoiceQuery) => $invoiceQuery
-                    ->where('status', 'PENDING')
+                    ->where('status', '!=', 'CANCELLED')
                     ->whereDate('due_on', '<', $date))
                     ->orWhereHas('fines', fn ($fineQuery) => $fineQuery->where('status', 'PENDING'));
             })
@@ -129,13 +129,21 @@ final class DebtService
         $lateFee = max((float) $invoice->late_fee, $calculatedLateFee);
         $serviceAmount = round((float) $invoice->rate + (float) $invoice->fines, 2);
         $totalDue = round($serviceAmount + $lateFee, 2);
-        $paid = round((float) ($invoice->payment_allocations_sum_amount ?? $invoice->paymentAllocations()->sum('amount')), 2);
+        $parts = app(PaymentConceptService::class)->paidPartsForInvoice($invoice);
+        $paid = round($parts['services'] + $parts['fines'] + $parts['late_fees'], 2);
+        $waived = (float) \App\Models\LateFeeWaiver::query()->where('invoice_id', $invoice->id)->sum('amount');
+        $serviceBalance = max(0, round($serviceAmount - $parts['services'] - $parts['fines'] - $parts['service_waived'], 2));
+        $feeBalance = max(0, round($lateFee - $parts['late_fees'] - $waived, 2));
+        $invoice->setAttribute('waived_service', $parts['service_waived']);
+        $invoice->setAttribute('service_balance', $serviceBalance);
+        $invoice->setAttribute('late_fee_balance', $feeBalance);
+        $invoice->setAttribute('waived_late_fee', $waived);
 
         $invoice->setAttribute('service_amount', $serviceAmount);
         $invoice->setAttribute('calculated_late_fee', $lateFee);
         $invoice->setAttribute('amount_due', $totalDue);
         $invoice->setAttribute('paid_amount', $paid);
-        $invoice->setAttribute('balance_due', max(0, round($totalDue - $paid, 2)));
+        $invoice->setAttribute('balance_due', round($serviceBalance + $feeBalance, 2));
         $invoice->setAttribute('late_fee_months', $this->lateFeeMonths($invoice, $date));
 
         return $invoice;
@@ -144,8 +152,10 @@ final class DebtService
     public function decorateFine(Fine $fine): Fine
     {
         $paid = round((float) ($fine->payment_allocations_sum_amount ?? $fine->paymentAllocations()->sum('amount')), 2);
+        $waived = (float) $fine->waivers()->sum('amount');
+        $fine->setAttribute('waived_amount', $waived);
         $fine->setAttribute('paid_amount', $paid);
-        $fine->setAttribute('balance_due', max(0, round((float) $fine->amount - $paid, 2)));
+        $fine->setAttribute('balance_due', max(0, round((float) $fine->amount - $paid - $waived, 2)));
 
         return $fine;
     }
@@ -157,10 +167,11 @@ final class DebtService
         $invoice = $this->decorateInvoice($invoice, $asOf);
         $lateFee = $invoice->calculated_late_fee;
         $total = $invoice->amount_due;
-        $status = $invoice->balance_due <= 0 ? 'PAID' : 'PENDING';
+        $status = $invoice->service_balance <= 0 ? 'PAID' : 'PENDING';
         $this->forgetComputedAttributes($invoice, [
             'service_amount', 'calculated_late_fee', 'amount_due', 'paid_amount',
             'balance_due', 'late_fee_months', 'payment_allocations_sum_amount',
+            'service_balance', 'late_fee_balance', 'waived_late_fee', 'waived_service',
         ]);
         $invoice->late_fee = $lateFee;
         $invoice->total = $total;
@@ -174,7 +185,7 @@ final class DebtService
     {
         $fine = $this->decorateFine($fine);
         $status = $fine->balance_due <= 0 ? 'PAID' : 'PENDING';
-        $this->forgetComputedAttributes($fine, ['paid_amount', 'balance_due', 'payment_allocations_sum_amount']);
+        $this->forgetComputedAttributes($fine, ['paid_amount', 'balance_due', 'waived_amount', 'payment_allocations_sum_amount']);
         $fine->status = $status;
         $fine->save();
 
@@ -183,20 +194,27 @@ final class DebtService
 
     private function lateFeeFor(Invoice $invoice, Carbon $date): float
     {
-        // A paid invoice is immutable. Further arrears belong to the remaining cycle debt.
-        if ($invoice->status === 'PAID') {
-            return (float) $invoice->late_fee;
-        }
         $cycle = app(BillingCycleService::class)->forInvoice($invoice);
         $siblings = Invoice::query()->where('connection_id', $invoice->connection_id)
             ->where('billing_period_id', $invoice->billing_period_id)
+            ->where('status', '!=', 'CANCELLED')
             ->whereBetween('period_starts_on', [$cycle['start']->toDateString(), $cycle['end']->toDateString()])
             ->orderBy('period_starts_on')->orderBy('id')
             ->when(DB::transactionLevel() > 0, fn ($query) => $query->lockForUpdate())
             ->get();
-        $carrier = $siblings->firstWhere('status', 'PENDING');
+        $pending = $siblings->filter(function ($sibling): bool {
+            $paid = app(PaymentConceptService::class)->paidPartsForInvoice($sibling);
+            return round($paid['services'] + $paid['fines'] + $paid['service_waived'], 2) < round((float) $sibling->rate + (float) $sibling->fines, 2);
+        });
+        $carrier = $pending->first() ?? $siblings->first();
         if (! $carrier?->is($invoice)) {
             return (float) $invoice->late_fee;
+        }
+        if ($pending->isEmpty()) {
+            $settledAt = $siblings->map(fn ($sibling) => app(PaymentConceptService::class)->paidPartsForInvoice($sibling)['service_settled_at'])->filter()->sort()->last();
+            if ($settledAt !== null && $settledAt->lt($date)) {
+                $date = Carbon::parse($settledAt);
+            }
         }
         $amount = $invoice->cycle_late_fee_amount ?? $this->lateFeeSetting($cycle['start'])?->monthly_amount ?? 0;
         $accrued = round($this->lateFeeMonths($invoice, $date) * (float) $amount, 2);

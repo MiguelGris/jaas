@@ -33,9 +33,10 @@
             <div class="mt-4 flex gap-2"><button type="submit" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'payment-concepts-monthly', 'format' => 'pdf']) }}" formtarget="_blank" class="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
         </form>
 
+        <form method="GET" action="{{ route('reports.download',['report'=>'service-waivers','format'=>'xlsx']) }}" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><h3 class="font-semibold">Condonaciones de servicio</h3><p class="mt-1 text-sm text-slate-500">Recibos mensuales, clientes, importes condonados, motivo y autorización. No incluye ingresos de caja.</p><label for="service-waivers-year" class="mt-3 block text-sm font-semibold">Año de condonación</label><input id="service-waivers-year" type="number" name="year" min="2000" max="2100" value="{{ now()->year }}" class="mt-2 w-full"><div class="mt-4 flex gap-2"><button class="rounded-lg bg-emerald-600 px-3 py-2 font-semibold text-white">Excel</button><button formaction="{{ route('reports.download',['report'=>'service-waivers','format'=>'pdf']) }}" formtarget="_blank" class="rounded-lg bg-rose-600 px-3 py-2 font-semibold text-white">Ver PDF</button></div></form>
         <form id="reporte-conceptos-anual" method="GET" action="{{ route('reports.download', ['report' => 'payment-concepts-annual', 'format' => 'xlsx']) }}" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 class="font-semibold text-slate-800">Conceptos de pago anuales</h3>
-            <p class="mt-1 text-sm text-slate-500">Comparativo mensual por cada concepto.</p>
+            <p class="mt-1 text-sm text-slate-500">Comparativo mensual por cada concepto, con servicio condonado separado de lo cobrado.</p>
             <label class="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-500" for="reports-concept-year">Año</label>
             <input id="reports-concept-year" type="number" name="year" value="{{ now()->year }}" min="2000" max="2100" step="1" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
             <div class="mt-4 flex gap-2"><button type="submit" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'payment-concepts-annual', 'format' => 'pdf']) }}" formtarget="_blank" class="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
@@ -100,7 +101,7 @@
 
         <form id="reporte-historial-pagos" method="GET" action="{{ route('reports.download', ['report' => 'customer-payment-history', 'format' => 'xlsx']) }}" class="rounded-xl border border-sky-200 bg-white p-5 shadow-sm md:col-span-2 xl:col-span-3">
             <h3 class="font-semibold text-slate-800">Historial de pagos por cliente</h3>
-            <p class="mt-1 text-sm text-slate-500">Escribe un dato y selecciona el cliente exacto por su código, DNI o RUC.</p>
+            <p class="mt-1 text-sm text-slate-500">Incluye pagos y recibos de servicio condonado, con importes separados. Escribe un dato y selecciona el cliente exacto por su código, DNI o RUC.</p>
             <div class="mt-2 grid gap-4 lg:grid-cols-2">
                 @include('reports._customer_selector', ['selectorId' => 'reports-payment-history-customer'])
                 @include('reports._payment_history_period', ['periodId' => 'reports-payment-history-period'])

@@ -27,6 +27,10 @@ class AuditLog extends JassModel
         }
 
         return match ($this->table_name) {
+            'late_fee_waivers' => 'Condonaciones de mora',
+            'service_waivers' => 'Condonaciones de servicio',
+            'fine_waivers' => 'Condonaciones de multas',
+            'waiver_campaigns' => 'Campañas de condonación',
             'billing_cycle_schedules' => 'Programación de ciclos', default => $this->table_name
         };
     }

@@ -40,6 +40,9 @@ final class ResourceAccess
 
     public static function allowsNavigation(?User $user, array $item): bool
     {
+        if ($item['admin_only'] ?? false) {
+            return self::isAdministrator($user);
+        }
         if (($item['resource'] ?? null) === 'settings') {
             return self::allows($user, 'settings') || self::allows($user, 'late-fee-settings');
         }

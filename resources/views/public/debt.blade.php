@@ -25,16 +25,16 @@
                 @else
                     <div class="mt-7 flex flex-col justify-between gap-3 rounded-xl bg-slate-950 p-5 text-white sm:flex-row sm:items-center">
                         <div><p class="text-sm text-slate-300">Total por pagar</p><p class="mt-1 text-3xl font-bold">S/ {{ number_format($totalDue, 2) }}</p></div>
-                        <p class="text-sm text-slate-300">{{ $invoices->count() }} {{ Str::plural('cuota', $invoices->count()) }} y {{ $fines->count() }} {{ Str::plural('multa', $fines->count()) }} pendiente(s)</p>
+                        <p class="text-sm text-slate-300">{{ $invoices->filter(fn ($row) => $row->service_balance > 0)->count() }} cuotas, {{ $invoices->filter(fn ($row) => $row->late_fee_balance > 0)->count() }} moras y {{ $fines->count() }} {{ Str::plural('multa', $fines->count()) }} pendiente(s)</p>
                     </div>
                     @if ($invoices->isNotEmpty())
                     <div class="mt-5 overflow-hidden rounded-xl border border-slate-200">
                         <div class="overflow-x-auto">
                             <table class="min-w-full divide-y divide-slate-100 text-left text-sm">
-                                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th class="px-4 py-3 font-semibold">Cuota</th><th class="px-4 py-3 font-semibold">Suministro</th><th class="px-4 py-3 font-semibold">Mora</th><th class="px-4 py-3 text-right font-semibold">Saldo</th></tr></thead>
+                                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th class="px-4 py-3 font-semibold">Cuota</th><th class="px-4 py-3 font-semibold">Suministro</th><th class="px-4 py-3 font-semibold">Servicio pendiente</th><th class="px-4 py-3 font-semibold">Mora pendiente</th><th class="px-4 py-3 text-right font-semibold">Saldo</th></tr></thead>
                                 <tbody class="divide-y divide-slate-100">
                                     @foreach ($invoices as $invoice)
-                                        <tr><td class="px-4 py-3.5 font-medium text-slate-700">{{ $invoice->period_starts_on?->translatedFormat('F Y') ?? '—' }}</td><td class="px-4 py-3.5 text-slate-600">{{ $invoice->connection?->supply_code ?? '—' }}</td><td class="px-4 py-3.5 text-slate-600">S/ {{ number_format($invoice->calculated_late_fee, 2) }}</td><td class="px-4 py-3.5 text-right font-semibold text-slate-800">S/ {{ number_format($invoice->balance_due, 2) }}</td></tr>
+                                        <tr><td class="px-4 py-3.5 font-medium text-slate-700">{{ $invoice->period_starts_on?->translatedFormat('F Y') ?? '—' }}</td><td class="px-4 py-3.5 text-slate-600">{{ $invoice->connection?->supply_code ?? '—' }}</td><td class="px-4 py-3.5 text-slate-600">S/ {{ number_format($invoice->service_balance, 2) }}</td><td class="px-4 py-3.5 text-slate-600">S/ {{ number_format($invoice->late_fee_balance, 2) }}</td><td class="px-4 py-3.5 text-right font-semibold text-slate-800">S/ {{ number_format($invoice->balance_due, 2) }}</td></tr>
                                     @endforeach
                                 </tbody>
                             </table>

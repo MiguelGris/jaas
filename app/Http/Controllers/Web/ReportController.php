@@ -42,6 +42,7 @@ final class ReportController extends Controller
             'payment-concepts-monthly',
             'payment-concepts-annual',
             'customer-payment-history',
+            'service-waivers',
             'debtors',
             'debt-aging',
             'payment-methods',

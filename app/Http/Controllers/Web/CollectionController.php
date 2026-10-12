@@ -33,7 +33,10 @@ final class CollectionController extends Controller
         return view('collections.create', [
             'customers' => $customers,
             'customer' => $customer,
-            'invoices' => $charges['invoices'],
+            'invoices' => $charges['invoices']->filter(fn ($invoice) => $invoice->service_balance > 0),
+            'lateFees' => $charges['invoices']->filter(fn ($invoice) => $invoice->late_fee_balance > 0),
+            'serviceWaiverHistory' => \App\Models\ServiceWaiver::query()->with(['invoice.connection.property.customer', 'user'])->when($customer,fn($q)=>$q->whereHas('invoice.connection.property',fn($q)=>$q->where('customer_id',$customer->id)))->when(! $customer,fn($q)=>$q->whereRaw('1=0'))->latest()->limit(20)->get(),
+            'waiverHistory' => \App\Models\LateFeeWaiver::query()->with(['invoice.billingPeriod', 'user'])->when($customer, fn ($q) => $q->whereHas('invoice.connection.property', fn ($q) => $q->where('customer_id', $customer->id)))->when(! $customer, fn ($q) => $q->whereRaw('1 = 0'))->latest()->limit(20)->get(),
             'fines' => $charges['fines'],
             'paymentMethods' => PaymentMethod::query()->orderBy('name')->get(),
         ]);
@@ -48,6 +51,9 @@ final class CollectionController extends Controller
             'fines' => ['nullable', 'array'],
             'fines.*' => ['integer', 'distinct', 'exists:fines,id'],
             'payment_method_id' => ['required', 'integer', 'exists:payment_methods,id'],
+            'late_fees' => ['nullable', 'array'],
+            'late_fees.*' => ['integer', 'distinct', 'exists:invoices,id'],
+            'separate_late_fees' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:250'],
             'external_reference' => ['nullable', 'string', 'max:100'],
         ]);
@@ -67,4 +73,26 @@ final class CollectionController extends Controller
             ->with('success', "Pago registrado. Recibo {$payment->receipt_code} emitido por S/ ".number_format((float) $payment->amount, 2).'.')
             ->with('receipt_id', $payment->getKey());
     }
+    public function waive(Request $request, \App\Services\LateFeeWaiverService $waivers): RedirectResponse
+    {
+        $data = $request->validate([
+            'customer_id' => ['required', 'integer', 'exists:customers,id'],
+            'waiver_invoices' => ['required', 'array', 'min:1'],
+            'waiver_invoices.*' => ['required', 'integer', 'distinct', 'exists:invoices,id'],
+            'waiver_mode' => ['required', 'in:all,percentage,amount'],
+            'waiver_value' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
+            'waiver_reason' => ['required', 'string', 'max:250'],
+        ]);
+        $customer = Customer::query()->findOrFail($data['customer_id']);
+        $amount = $waivers->waive($customer, $data['waiver_invoices'], $data['waiver_mode'], (float) ($data['waiver_value'] ?? 0), $data['waiver_reason'], $request->user());
+        return redirect()->route('collections.create', ['customer' => $customer->id])
+            ->with('success', 'Mora condonada: S/ '.number_format($amount, 2).'. La condonación quedó registrada y no es un ingreso de caja.');
+    }
+    public function waiveService(Request $request, \App\Services\ServiceWaiverService $service): RedirectResponse {
+        $data=$request->validate(['customer_id'=>['required','integer','exists:customers,id'],'service_invoices'=>['required','array','min:1'],'service_invoices.*'=>['integer','distinct','exists:invoices,id'],'service_mode'=>['required','in:all,percentage,amount'],'service_value'=>['nullable','numeric','min:0','max:99999999.99'],'service_reason'=>['required','string','max:250']]);
+        $customer=Customer::query()->findOrFail($data['customer_id']);
+        $waivers=$service->waive($customer,$data['service_invoices'],$data['service_mode'],(float)($data['service_value']??0),$data['service_reason'],$request->user());
+        return redirect()->route('collections.create',['customer'=>$customer->id])->with('success','Servicio condonado: S/ '.number_format(collect($waivers)->sum('amount'),2).'. Los recibos mensuales están disponibles en el historial de condonaciones.');
+    }
+
 }

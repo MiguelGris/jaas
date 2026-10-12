@@ -199,6 +199,9 @@ final class JassPageController extends Controller
         if ($resource === 'late-fee-settings') {
             return redirect()->route('resources.index', ['resource' => 'settings']);
         }
+        if ($resource === 'payments') {
+            return app(ReceiptIndexController::class)->index($request);
+        }
         $columns = $this->columns($definition);
         $records = $this->query($definition);
         if ($resource === 'settings') {
@@ -272,48 +275,6 @@ final class JassPageController extends Controller
             };
         }
 
-        if ($resource === 'payments') {
-            $filters = $request->validate([
-                'q' => ['nullable', 'string', 'max:150'],
-                'from' => ['nullable', 'date'],
-                'to' => ['nullable', 'date', 'after_or_equal:from'],
-            ]);
-            $paymentFilters = [
-                'q' => trim((string) ($filters['q'] ?? '')),
-                'from' => (string) ($filters['from'] ?? ''),
-                'to' => (string) ($filters['to'] ?? ''),
-            ];
-
-            if ($paymentFilters['q'] !== '') {
-                $terms = preg_split('/\s+/', $paymentFilters['q'], -1, PREG_SPLIT_NO_EMPTY) ?: [];
-                $matchesName = static function ($customerQuery) use ($terms): void {
-                    foreach ($terms as $term) {
-                        $customerQuery->where(function ($nameQuery) use ($term): void {
-                            $nameQuery->where('first_name', 'like', "%{$term}%")
-                                ->orWhere('last_name', 'like', "%{$term}%")
-                                ->orWhere('business_name', 'like', "%{$term}%")
-                                ->orWhere('national_id', 'like', "%{$term}%")->orWhere('customer_code', 'like', "%{$term}%");
-                        });
-                    }
-                };
-
-                $records->where(function ($query) use ($matchesName, $paymentFilters): void {
-                    $query->where('receipt_code', 'like', '%'.$paymentFilters['q'].'%')
-                        ->orWhere('operation_number', 'like', '%'.$paymentFilters['q'].'%')
-                        ->orWhereHas('customer', $matchesName)
-                        ->orWhereHas('invoice.connection.property.customer', $matchesName);
-                });
-            }
-
-            if ($paymentFilters['from'] !== '') {
-                $records->whereDate('paid_at', '>=', $paymentFilters['from']);
-            }
-
-            if ($paymentFilters['to'] !== '') {
-                $records->whereDate('paid_at', '<=', $paymentFilters['to']);
-            }
-        }
-
         $auditFilters = [];
         $auditUsers = collect();
         if ($resource === 'audit-logs') {
@@ -330,8 +291,12 @@ final class JassPageController extends Controller
             }
             if (! empty($auditFilters['q'])) {
                 $term = $auditFilters['q'];
+                if (str_contains(mb_strtolower($term), 'condona') || str_contains(mb_strtolower($term), 'campaña')) {
+                    $records->whereIn('table_name', ['waiver_campaigns', 'late_fee_waivers', 'fine_waivers', 'service_waivers']);
+                } else {
                 $tables = collect(self::definitions())->filter(fn ($d) => str_contains(mb_strtolower($d['label']), mb_strtolower($term)))->map(fn ($d) => (new $d['model'])->getTable())->values()->all();
                 $records->where(fn ($q) => $q->where('table_name', 'like', '%'.$term.'%')->orWhereIn('table_name', $tables)->orWhere('record_id', $term));
+                }
             }
         }
         $records = $records
@@ -653,7 +618,7 @@ final class JassPageController extends Controller
             'Reportes' => [
                 ['label' => 'Reportes', 'route_name' => 'reports.index', 'active' => 'reports.*', 'permission' => 'reports.view'],
             ],
-            'Administración' => ['users', 'settings', 'roles', 'permissions', 'audit-logs'],
+            'Administración' => ['users', 'settings', 'roles', 'permissions', 'audit-logs', ['label' => 'Condonación masiva', 'route_name' => 'waivers.index', 'active' => 'waivers.*', 'admin_only' => true]],
             'Catálogos' => ['customer-statuses', 'neighborhoods', 'connection-types', 'connection-statuses', 'usage-types', 'payment-methods', 'assembly-types', 'income-types', 'expense-categories'],
         ];
         $definitions = self::definitions();
@@ -1078,7 +1043,7 @@ final class JassPageController extends Controller
                 'total' => self::number('Total', true, 0),
                 'status' => self::choice('Estado', ['PENDING' => 'Pendiente', 'PAID' => 'Pagada', 'CANCELLED' => 'Anulada']),
             ], ['invoice_code', 'connection_id', 'period_starts_on', 'due_on', 'total', 'status'], true),
-            'payments' => self::resource('Recibos de pago', 'Recibo de pago', Payment::class, [
+            'payments' => self::resource('Recibos', 'Recibo de pago', Payment::class, [
                 'receipt_code' => self::code('Número de recibo'),
                 'customer_id' => self::select('Cliente', Customer::class, 'customer', false, 'display_name'),
                 'invoice_id' => self::select('Cuota histórica', Invoice::class, 'invoice', false, 'invoice_code'),

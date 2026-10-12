@@ -156,3 +156,14 @@ Para investigar una diferencia:
 6. Consulta la bitácora para identificar cambios o eliminaciones.
 
 El flujo de caja mensual calcula un saldo propio del periodo. El saldo en caja del dashboard, en cambio, parte del último cierre confirmado y agrega movimientos posteriores; por ello pueden representar contextos distintos.
+
+
+## Recibos y reportes de servicio condonado
+
+Facturación → Recibos muestra los pagos y los recibos mensuales de servicio condonado en una sola lista ordenada por fecha, con búsqueda por cliente o código, filtros de fecha y tipo, y paginación de 10, 20, 50 o 100 registros. Cada comprobante conserva su identidad y enlace de impresión; las condonaciones no tienen la acción de anular un pago.
+
+El historial de pagos por cliente también incluye los recibos de servicio condonado dentro del periodo elegido, separando Importe cobrado de Servicio condonado. Los totales de pagos válidos solo suman dinero cobrado.
+
+Conceptos mensuales y anuales incluyen Servicio condonado (sin ingreso), calculado por la fecha de la condonación. Ese importe no se suma a la recaudación, entradas ni saldo de caja. El periodo de la cuota puede ser distinto del mes en que se condonó.
+
+El reporte Condonaciones de servicio, disponible en Excel y PDF, detalla fecha, recibo, cliente, cuota mensual, importe condonado, saldo después de la operación, motivo, usuario y campaña. Permite consultar el año de condonación. Los recibos, pagos y movimientos de caja históricos se conservan.

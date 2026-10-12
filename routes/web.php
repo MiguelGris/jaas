@@ -117,3 +117,16 @@ Route::middleware(['auth', 'active', SpanishWebRoutes::class, 'permission'])->pr
     Route::get('{resource}/{record}/edit', [JassPageController::class, 'edit'])
         ->whereIn('resource', array_keys(SpanishRoutes::RESOURCES))->whereNumber('record')->name('legacy-edit');
 });
+
+Route::post('/cobranza/condonar-mora', [CollectionController::class, 'waive'])->middleware(['auth', 'active', 'permission:rates.manage'])->name('collections.waive');
+
+Route::middleware(['auth', 'active'])->prefix('condonaciones')->name('waivers.')->group(function (): void {
+    Route::get('/', [\App\Http\Controllers\Web\BulkWaiverController::class, 'index'])->name('index');
+    Route::post('/revisar', [\App\Http\Controllers\Web\BulkWaiverController::class, 'preview'])->name('preview');
+    Route::get('/revision', [\App\Http\Controllers\Web\BulkWaiverController::class, 'review'])->name('review');
+    Route::post('/', [\App\Http\Controllers\Web\BulkWaiverController::class, 'store'])->name('store');
+});
+
+Route::post('/cobranza/condonar-servicio', [CollectionController::class, 'waiveService'])->middleware(['auth','active','permission:payments.create'])->name('collections.waive-service');
+Route::get('/condonaciones/{campaign}/recibos-servicio', [\App\Http\Controllers\Web\BulkWaiverController::class, 'receipts'])->middleware(['auth','active'])->name('waivers.receipts');
+Route::get('/recibos-condonacion/{waiver}/imprimir', [\App\Http\Controllers\Web\ServiceWaiverReceiptController::class, 'show'])->middleware(['auth','active'])->name('service-waiver-receipts.show');

@@ -20,9 +20,9 @@ final class PaymentCollectionService
     public function __construct(private readonly DebtService $debts) {}
 
     /**
-     * Registra un pago completo sobre las cuotas y multas seleccionadas.
+     * Registra los saldos seleccionados de servicio, mora y multas.
      *
-     * Todo se ejecuta en una sola transacción para impedir recibos parciales:
+     * Todo se ejecuta en una sola transacción para impedir registros incompletos:
      * o se guardan el pago, sus asignaciones y los nuevos estados, o no se
      * guarda nada.
      *
@@ -35,11 +35,13 @@ final class PaymentCollectionService
         $invoiceIds = array_values(array_unique(array_map('intval', $invoiceIds)));
         $fineIds = array_values(array_unique(array_map('intval', $fineIds)));
 
-        if ($invoiceIds === [] && $fineIds === []) {
+        $feeIds = array_values(array_unique(array_map('intval', $details['late_fees'] ?? [])));
+        $separate = (bool) ($details['separate_late_fees'] ?? false) || $feeIds !== [];
+        if ($invoiceIds === [] && $fineIds === [] && $feeIds === []) {
             throw ValidationException::withMessages(['charges' => 'Selecciona al menos una cuota o multa.']);
         }
 
-        return DB::transaction(function () use ($customer, $invoiceIds, $fineIds, $details, $user): Payment {
+        return DB::transaction(function () use ($customer, $invoiceIds, $fineIds, $details, $user, $feeIds, $separate): Payment {
             // Compartimos el bloqueo con la reapertura de asambleas: el estado
             // no puede cambiar entre la validación y la confirmación del cobro.
             $assemblyIds = Fine::query()->whereIn('id', $fineIds)->pluck('assembly_id')->unique()->sort()->values();
@@ -50,7 +52,7 @@ final class PaymentCollectionService
                 }
             }
             // Lock the entire supply: different quotas can share one cycle's mora.
-            $connectionIds = Invoice::query()->whereIn('id', $invoiceIds)->pluck('connection_id')->unique()->sort();
+            $connectionIds = Invoice::query()->whereIn('id', array_unique([...$invoiceIds, ...$feeIds]))->pluck('connection_id')->unique()->sort();
             Connection::query()->whereIn('id', $connectionIds)->orderBy('id')->lockForUpdate()->get();
             sort($invoiceIds);
             $date = now();
@@ -76,7 +78,31 @@ final class PaymentCollectionService
                     throw ValidationException::withMessages(['invoices' => 'Una de las cuotas seleccionadas ya fue pagada.']);
                 }
 
-                $allocations[] = ['invoice' => $invoice, 'amount' => $invoice->balance_due];
+                $separate = $separate || $invoice->waived_service > 0;
+                $cashParts = app(PaymentConceptService::class)->paidPartsForInvoice($invoice);
+                $rateBalance = max(0, round((float) $invoice->rate - $cashParts['services'] - $cashParts['service_waived'], 2));
+                $charge = $separate ? $invoice->service_balance : $invoice->balance_due;
+                if ($charge <= 0) {
+                    throw ValidationException::withMessages(['invoices' => 'El servicio seleccionado ya fue pagado.']);
+                }
+                $this->debts->synchroniseInvoice($invoice, $date);
+                $allocations[] = ['invoice' => $invoice, 'amount' => $charge, 'concept' => $separate ? 'SERVICE' : null, 'service_component' => $separate ? min($charge, $rateBalance) : null, 'fine_component' => $separate ? max(0, round($charge - min($charge, $rateBalance), 2)) : null];
+            }
+
+            foreach ($feeIds as $feeId) {
+                $invoice = Invoice::query()->lockForUpdate()->whereKey($feeId)
+                    ->where('status', '!=', 'CANCELLED')
+                    ->whereHas('connection.property', fn ($query) => $query->where('customer_id', $customer->id))->first();
+                if ($invoice === null) {
+                    throw ValidationException::withMessages(['late_fees' => 'La mora no pertenece a este cliente o no está disponible.']);
+                }
+                $invoice = $this->debts->decorateInvoice($invoice, $date);
+                $charge = $invoice->late_fee_balance;
+                if ($charge <= 0) {
+                    throw ValidationException::withMessages(['late_fees' => 'La mora seleccionada ya fue pagada o condonada.']);
+                }
+                $this->debts->synchroniseInvoice($invoice, $date);
+                $allocations[] = ['invoice' => $invoice, 'amount' => $charge, 'concept' => 'LATE_FEE'];
             }
 
             foreach ($fineIds as $fineId) {
@@ -131,9 +157,10 @@ final class PaymentCollectionService
                     PaymentAllocation::query()->create($row + [
                         'charge_type' => 'INVOICE',
                         'invoice_id' => $invoice->getKey(),
+                        'concept' => $allocation['concept'] ?? null,
+                        'service_component' => $allocation['service_component'] ?? null,
+                        'fine_component' => $allocation['fine_component'] ?? null,
                     ]);
-                    $this->debts->synchroniseInvoice($invoice, $date);
-
                     continue;
                 }
 
@@ -143,6 +170,10 @@ final class PaymentCollectionService
                     'fine_id' => $fine->getKey(),
                 ]);
                 $this->debts->synchroniseFine($fine);
+            }
+
+            foreach (collect($allocations)->pluck('invoice')->filter()->unique('id') as $invoice) {
+                $this->debts->synchroniseInvoice($invoice->fresh(), $date);
             }
 
             return $payment->load(['customer', 'paymentMethod', 'user', 'allocations.invoice', 'allocations.fine']);

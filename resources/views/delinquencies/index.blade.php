@@ -64,7 +64,7 @@
                                         <div>
                                             <p class="font-semibold text-slate-800">{{ $invoice->invoice_code }} · {{ $invoice->connection?->supply_code }}</p>
                                             <p class="mt-0.5 text-slate-500">{{ $invoice->period_starts_on?->translatedFormat('F Y') }} · venció {{ $invoice->due_on?->format('d/m/Y') }}</p>
-                                            @if ($invoice->late_fee_months > 0)<p class="mt-1 text-xs font-medium text-amber-700">{{ $invoice->late_fee_months }} {{ $invoice->late_fee_months === 1 ? 'mes' : 'meses' }} de mora</p>@endif
+                                            <p class="mt-1 text-xs font-medium text-amber-700">Servicio pendiente: S/ {{ number_format($invoice->service_balance, 2) }} · Mora pendiente: S/ {{ number_format($invoice->late_fee_balance, 2) }}</p>
                                         </div>
                                         <span class="whitespace-nowrap font-bold text-rose-700">S/ {{ number_format($invoice->balance_due, 2) }}</span>
                                     </div>
