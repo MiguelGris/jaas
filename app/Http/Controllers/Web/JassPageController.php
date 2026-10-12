@@ -206,6 +206,36 @@ final class JassPageController extends Controller
 
             return view('resources.settings-index', compact('configurationRows'));
         }
+        $listFilters = $request->validate([
+            'q' => ['nullable', 'string', 'max:150'],
+            'per_page' => ['nullable', 'integer', Rule::in([10, 20, 50, 100])],
+        ]);
+        $listSearch = trim((string) ($listFilters['q'] ?? ''));
+        $perPage = (int) ($listFilters['per_page'] ?? 10);
+        if (! in_array($resource, ['customers', 'payments', 'audit-logs'], true) && $listSearch !== '') {
+            foreach (preg_split('/\s+/', $listSearch, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $term) {
+                $records->where(function ($query) use ($columns, $term): void {
+                    foreach ($columns as $name => $field) {
+                        if (isset($field['relation'])) {
+                            $label = $field['options']['label'];
+                            $query->orWhereHas($field['relation'], function ($related) use ($label, $term): void {
+                                if ($label === 'display_name') {
+                                    $related->where(fn ($customer) => $customer->where('first_name', 'like', "%{$term}%")->orWhere('last_name', 'like', "%{$term}%")->orWhere('business_name', 'like', "%{$term}%")->orWhere('national_id', 'like', "%{$term}%")->orWhere('customer_code', 'like', "%{$term}%"));
+                                } else {
+                                    $related->where($label, 'like', "%{$term}%");
+                                }
+                            });
+                        } elseif ($field['type'] !== 'checkbox') {
+                            if (isset($field['choices'])) {
+                                $values = array_keys(array_filter($field['choices'], fn ($label) => str_contains(mb_strtolower($label), mb_strtolower($term))));
+                                $query->orWhereIn($name, $values);
+                            }
+                            $query->orWhere($name, 'like', "%{$term}%");
+                        }
+                    }
+                });
+            }
+        }
         $paymentFilters = ['q' => '', 'from' => '', 'to' => ''];
         $invoiceState = '';
         $customerSearch = '';
@@ -267,8 +297,10 @@ final class JassPageController extends Controller
                     }
                 };
 
-                $records->where(function ($query) use ($matchesName): void {
-                    $query->whereHas('customer', $matchesName)
+                $records->where(function ($query) use ($matchesName, $paymentFilters): void {
+                    $query->where('receipt_code', 'like', '%'.$paymentFilters['q'].'%')
+                        ->orWhere('operation_number', 'like', '%'.$paymentFilters['q'].'%')
+                        ->orWhereHas('customer', $matchesName)
                         ->orWhereHas('invoice.connection.property.customer', $matchesName);
                 });
             }
@@ -304,10 +336,10 @@ final class JassPageController extends Controller
         }
         $records = $records
             ->orderByDesc('id')
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString();
 
-        return view('resources.index', compact('resource', 'definition', 'columns', 'records', 'paymentFilters', 'invoiceState', 'customerSearch', 'auditFilters', 'auditUsers'));
+        return view('resources.index', compact('resource', 'definition', 'columns', 'records', 'paymentFilters', 'invoiceState', 'customerSearch', 'auditFilters', 'auditUsers', 'listSearch', 'perPage'));
     }
 
     public function create(Request $request, string $resource): View

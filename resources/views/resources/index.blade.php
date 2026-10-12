@@ -25,9 +25,26 @@
         @endunless
     </div>
 
+    @if (! in_array($resource, ['customers', 'payments', 'audit-logs']))
+        <form method="GET" class="mb-6 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
+            @if ($invoiceState !== '')<input type="hidden" name="state" value="{{ $invoiceState }}">@endif
+            <input type="hidden" name="per_page" value="{{ $perPage }}">
+            <div class="min-w-0 flex-1"><label for="list-search" class="mb-2 block text-sm font-semibold">Buscar en {{ Str::lower($definition['label']) }}</label><input id="list-search" name="q" type="search" maxlength="150" value="{{ $listSearch }}" placeholder="Código, nombre o datos del registro" class="w-full rounded-lg border-slate-300"></div>
+            <button class="rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white">Buscar</button>
+            @if ($listSearch !== '')<a class="px-3 py-3" href="{{ route('resources.index', ['resource' => $resource, 'state' => $invoiceState, 'per_page' => $perPage]) }}">Limpiar</a>@endif
+        </form>
+    @endif
+    <form method="GET" class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        @foreach (request()->except(['page', 'per_page']) as $key => $value)
+            @if (is_scalar($value))<input type="hidden" name="{{ $key }}" value="{{ $value }}">@endif
+        @endforeach
+        <p class="text-sm text-slate-600">Mostrando {{ $records->firstItem() ?? 0 }}–{{ $records->lastItem() ?? 0 }} de {{ $records->total() }} registros</p>
+        <div class="flex items-center gap-2"><label for="per-page" class="text-sm font-semibold">Por página</label><select id="per-page" name="per_page" class="rounded-lg border-slate-300">@foreach ([10, 20, 50, 100] as $size)<option value="{{ $size }}" @selected($perPage === $size)>{{ $size }}</option>@endforeach</select><button class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Aplicar</button></div>
+    </form>
+
     @if ($resource === 'audit-logs')
         <form method="GET" class="mb-6 grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
-            <div><label for="audit-user" class="block font-semibold">Usuario</label><select id="audit-user" name="user_id" class="w-full"><option value="">Todos</option>@foreach($auditUsers as $user)<option value="{{ $user->id }}" @selected((string)($auditFilters['user_id'] ?? '') === (string)$user->id)>{{ $user->name }}</option>@endforeach</select></div>
+            <input type="hidden" name="per_page" value="{{ $perPage }}"><div><label for="audit-user" class="block font-semibold">Usuario</label><select id="audit-user" name="user_id" class="w-full"><option value="">Todos</option>@foreach($auditUsers as $user)<option value="{{ $user->id }}" @selected((string)($auditFilters['user_id'] ?? '') === (string)$user->id)>{{ $user->name }}</option>@endforeach</select></div>
             <div><label for="audit-from" class="block font-semibold">Desde</label><input class="w-full" id="audit-from" type="date" name="from" value="{{ $auditFilters['from'] ?? '' }}"></div>
             <div><label for="audit-to" class="block font-semibold">Hasta</label><input class="w-full" id="audit-to" type="date" name="to" value="{{ $auditFilters['to'] ?? '' }}"></div>
             <div><label for="audit-q" class="block font-semibold">Módulo o registro</label><input class="w-full" id="audit-q" type="search" name="q" maxlength="100" value="{{ $auditFilters['q'] ?? '' }}" placeholder="Clientes, caja o número"></div>
@@ -50,7 +67,7 @@
         @endphp
         <nav class="mb-6 flex gap-2 overflow-x-auto pb-1" aria-label="Filtros de cuotas">
             @foreach ($invoiceTabs as $state => $label)
-                <a href="{{ route('resources.index', array_filter(['resource' => 'invoices', 'state' => $state])) }}"
+                <a href="{{ route('resources.index', array_filter(['resource' => 'invoices', 'state' => $state, 'q' => $listSearch, 'per_page' => $perPage])) }}"
                    class="whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-semibold transition {{ $invoiceState === $state ? 'bg-sky-600 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-600 hover:border-sky-300 hover:text-sky-700' }}">
                     {{ $label }}
                 </a>
@@ -60,8 +77,8 @@
 
     @if ($resource === 'payments')
         <form method="GET" action="{{ route('resources.index', ['resource' => 'payments']) }}" class="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_10rem_10rem_auto] lg:items-end">
-                <div><label for="payment-search" class="mb-1.5 block text-sm font-semibold text-slate-700">Cliente</label><input id="payment-search" type="search" name="q" value="{{ $paymentFilters['q'] }}" placeholder="DNI, RUC, nombre o razón social" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"></div>
+            <input type="hidden" name="per_page" value="{{ $perPage }}"><div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_10rem_10rem_auto] lg:items-end">
+                <div><label for="payment-search" class="mb-1.5 block text-sm font-semibold text-slate-700">Cliente, recibo u operación</label><input id="payment-search" type="search" name="q" value="{{ $paymentFilters['q'] }}" maxlength="150" placeholder="Nombre, documento, recibo u operación" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"></div>
                 <div><label for="payment-from" class="mb-1.5 block text-sm font-semibold text-slate-700">Desde</label><input id="payment-from" type="date" name="from" value="{{ $paymentFilters['from'] }}" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"></div>
                 <div><label for="payment-to" class="mb-1.5 block text-sm font-semibold text-slate-700">Hasta</label><input id="payment-to" type="date" name="to" value="{{ $paymentFilters['to'] }}" class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500"></div>
                 <div class="flex gap-2"><button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">Buscar</button>@if (array_filter($paymentFilters))<a href="{{ route('resources.index', ['resource' => 'payments']) }}" class="rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100">Limpiar</a>@endif</div>
@@ -76,7 +93,7 @@
     @endif
     @if ($resource === 'customers')
         <form method="GET" class="mb-6 flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-4">
-            <label for="customer-search" class="w-full text-sm font-semibold">Buscar cliente por nombre, DNI, RUC o código</label>
+            <input type="hidden" name="per_page" value="{{ $perPage }}"><label for="customer-search" class="w-full text-sm font-semibold">Buscar cliente por nombre, DNI, RUC o código</label>
             <input id="customer-search" type="search" name="q" maxlength="150" value="{{ $customerSearch }}" class="min-w-0 flex-1 rounded-lg border-slate-300" placeholder="Escribe un nombre o documento">
             <button class="rounded-lg bg-sky-600 px-4 py-3 font-semibold text-white">Buscar</button>
             @if ($customerSearch !== '')<a href="{{ route('resources.index', ['resource'=>'customers']) }}" class="px-3 py-3">Limpiar</a>@endif

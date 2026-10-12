@@ -49,6 +49,49 @@ class PaymentReceiptFilterTest extends TestCase
         $response->assertDontSee($other->receipt_code);
     }
 
+    public function test_shared_lists_filter_before_paginating_and_preserve_the_page_size(): void
+    {
+        $user = $this->administrator();
+        for ($i = 1; $i <= 23; $i++) {
+            \App\Models\Neighborhood::query()->create(['name' => 'Sector '.$i, 'active' => true]);
+        }
+        \App\Models\Neighborhood::query()->create(['name' => 'Otro barrio', 'active' => true]);
+        $response = $this->actingAs($user)->get(route('resources.index', ['resource' => 'neighborhoods', 'q' => 'Sector', 'per_page' => 20]));
+        $response->assertOk()->assertViewHas('records', fn ($records) => $records->total() === 23 && $records->count() === 20 && $records->perPage() === 20);
+        $response->assertDontSee('Otro barrio')->assertSee('per_page=20', false);
+        $this->get(route('resources.index', ['resource' => 'neighborhoods', 'q' => 'Sector', 'per_page' => 20, 'page' => 2]))
+            ->assertOk()->assertViewHas('records', fn ($records) => $records->count() === 3);
+        foreach ([10, 20, 50, 100] as $size) {
+            $this->get(route('resources.index', ['resource' => 'neighborhoods', 'per_page' => $size]))
+                ->assertOk()->assertViewHas('records', fn ($records) => $records->perPage() === $size);
+        }
+        $this->get(route('resources.index', ['resource' => 'neighborhoods']))
+            ->assertOk()->assertViewHas('records', fn ($records) => $records->perPage() === 10);
+    }
+
+    public function test_receipts_can_be_searched_by_receipt_and_operation_number(): void
+    {
+        $user = $this->administrator();
+        $status = CustomerStatus::query()->create(['name' => 'ACTIVE']);
+        $customer = Customer::query()->create(['first_name' => 'Ana', 'last_name' => 'Perez', 'customer_status_id' => $status->id, 'registered_on' => '2026-01-01']);
+        $method = PaymentMethod::query()->create(['name' => 'Efectivo']);
+        $payment = $this->payment($customer, $method, 'RC26-900001', 'OP26-900001', '2026-09-20 10:00:00');
+        foreach ([$payment->receipt_code, $payment->operation_number] as $term) {
+            $this->actingAs($user)->get(route('resources.index', ['resource' => 'payments', 'q' => $term]))
+                ->assertOk()->assertViewHas('records', fn ($records) => $records->total() === 1);
+        }
+    }
+    public function test_all_shared_lists_accept_search_and_page_size(): void
+    {
+        $user = $this->administrator();
+        foreach (\App\Http\Controllers\Web\JassPageController::definitions() as $resource => $definition) {
+            if (in_array($resource, ['settings', 'late-fee-settings'])) {
+                continue;
+            }
+            $this->actingAs($user)->get(route('resources.index', ['resource' => $resource, 'q' => 'inexistente', 'per_page' => 100]))
+                ->assertOk()->assertViewHas('records', fn ($records) => $records->perPage() === 100);
+        }
+    }
     private function administrator(): User
     {
         $role = Role::query()->create(['name' => 'ADMINISTRATOR']);

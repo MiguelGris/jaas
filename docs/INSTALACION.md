@@ -28,7 +28,7 @@ En XAMPP, las extensiones se habilitan en `C:\xampp\php\php.ini`. Después de mo
 git clone https://github.com/MiguelGris/jaas.git
 cd jaas
 composer install
-npm install
+npm ci
 ```
 
 En Windows PowerShell:
@@ -196,3 +196,24 @@ php artisan optimize
 ```
 
 No ejecutes `migrate:fresh` en una base con información real: elimina todas las tablas y sus datos.
+
+## Sincronizar la interfaz entre computadoras
+
+Git incluye las vistas, CSS, JavaScript, logos y los archivos `composer.lock` y `package-lock.json`. Las dependencias (`vendor`, `node_modules`), estilos compilados (`public/build`), cachés y configuración privada (`.env`) se generan o configuran en cada instalación y se excluyen de Git.
+
+Después de obtener los cambios, ejecuta desde la carpeta del proyecto:
+
+```bash
+git pull --ff-only
+composer install
+npm ci
+npm run build
+php artisan view:clear
+php artisan config:clear
+```
+
+Tailwind obtiene las clases de las vistas y código fuente indicados en `resources/css/app.css`, sin depender de vistas compiladas de `storage/framework/views` ni archivos de documentación locales.
+
+Si ejecutas la aplicación con Apache o `php artisan serve`, detén primero cualquier proceso `npm run dev`. Si existe `public/hot` de una sesión de Vite que ya no está activa, elimínalo para que Laravel utilice `public/build`. En PowerShell: `Remove-Item -LiteralPath public/hot`.
+
+Recarga el navegador con Ctrl+F5. Si persisten diferencias, compara el commit con `git rev-parse HEAD`, comprueba que ambos navegadores usan zoom de 100% y el mismo ancho de ventana. La interfaz adapta su distribución al ancho disponible; la escala de pantalla del sistema también puede cambiarlo.
