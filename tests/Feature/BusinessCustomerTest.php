@@ -156,6 +156,37 @@ class BusinessCustomerTest extends TestCase
         $this->assertFalse($names->contains('Comercial Sin Exoneración S.A.C.'));
     }
 
+    public function test_customer_documents_are_required_when_registering_and_cannot_be_cleared(): void
+    {
+        $this->actingAs($this->administrator());
+        foreach ([Customer::TYPE_PERSON, Customer::TYPE_BUSINESS] as $type) {
+            $attributes = [
+                'customer_type' => $type,
+                'first_name' => 'Ana',
+                'last_name' => 'Prueba',
+                'business_name' => 'Negocio Prueba',
+                'customer_status_id' => $this->activeStatus()->id,
+                'registered_on' => '2026-10-02',
+            ];
+            foreach ([null, '', '   '] as $document) {
+                $this->post(route('resources.store', ['resource' => 'customers']), [...$attributes, 'national_id' => $document])
+                    ->assertSessionHasErrors('national_id');
+                $this->postJson('/api/v1/customers', [...$attributes, 'national_id' => $document])
+                    ->assertUnprocessable()->assertJsonValidationErrors('national_id');
+            }
+            $document = $type === Customer::TYPE_PERSON ? '12345678' : '20123456789';
+            $this->postJson('/api/v1/customers', [...$attributes, 'national_id' => $document])->assertCreated();
+            $customer = Customer::query()->where('national_id', $document)->firstOrFail();
+            $this->put(route('resources.update', ['resource' => 'customers', 'record' => $customer->id]), [...$attributes, 'national_id' => ''])
+                ->assertSessionHasErrors('national_id');
+            $this->patchJson('/api/v1/customers/'.$customer->id, ['national_id' => null])
+                ->assertUnprocessable()->assertJsonValidationErrors('national_id');
+            $this->patchJson('/api/v1/customers/'.$customer->id, ['phone' => '999888777'])->assertOk();
+            $this->assertSame($document, $customer->fresh()->national_id);
+        }
+        $this->assertDatabaseCount('customers', 2);
+    }
+
     private function administrator(): User
     {
         return User::query()->create([

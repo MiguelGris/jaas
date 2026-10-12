@@ -248,12 +248,14 @@ final class JassResourceController extends Controller
 
         validator($identity, [
             'customer_type' => 'required|in:'.Customer::TYPE_PERSON.','.Customer::TYPE_BUSINESS,
-            'national_id' => $type === Customer::TYPE_BUSINESS ? 'required|digits:11' : 'nullable|digits:8',
+            'national_id' => $type === Customer::TYPE_BUSINESS ? 'required|digits:11' : 'required|digits:8',
             'first_name' => $type === Customer::TYPE_PERSON ? 'required|string|max:100' : 'nullable|string|max:100',
             'last_name' => $type === Customer::TYPE_PERSON ? 'required|string|max:100' : 'nullable|string|max:100',
             'business_name' => $type === Customer::TYPE_BUSINESS ? 'required|string|max:200' : 'nullable|string|max:200',
         ], [
-            'national_id.required' => 'El RUC es obligatorio para una empresa o negocio.',
+            'national_id.required' => $type === Customer::TYPE_BUSINESS
+                ? 'El RUC es obligatorio para una empresa o negocio.'
+                : 'El DNI es obligatorio para una persona.',
             'national_id.digits' => $type === Customer::TYPE_BUSINESS
                 ? 'El RUC debe contener exactamente 11 dígitos.'
                 : 'El DNI debe contener exactamente 8 dígitos.',
@@ -538,7 +540,7 @@ final class JassResourceController extends Controller
                 'model' => Customer::class,
                 'rules' => static fn (?string $id): array => [
                     'customer_type' => 'required|in:'.Customer::TYPE_PERSON.','.Customer::TYPE_BUSINESS,
-                    'national_id' => ['nullable', 'string', 'max:11', self::unique('customers', 'national_id', $id)],
+                    'national_id' => ['required', 'string', 'max:11', self::unique('customers', 'national_id', $id)],
                     'first_name' => 'nullable|string|max:100',
                     'last_name' => 'nullable|string|max:100',
                     'business_name' => 'nullable|string|max:200',

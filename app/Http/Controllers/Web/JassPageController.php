@@ -914,7 +914,7 @@ final class JassPageController extends Controller
 
             $rules['customer_type'] = ['required', Rule::in([Customer::TYPE_PERSON, Customer::TYPE_BUSINESS])];
             $rules['national_id'] = [
-                $type === Customer::TYPE_BUSINESS ? 'required' : 'nullable',
+                'required',
                 'string',
                 $type === Customer::TYPE_BUSINESS ? 'digits:11' : 'digits:8',
                 $uniqueDocument,
@@ -955,7 +955,7 @@ final class JassPageController extends Controller
             'customers' => self::resource('Clientes', 'Cliente', Customer::class, [
                 'customer_code' => self::code('Código de cliente'),
                 'customer_type' => self::choice('Tipo de cliente', [Customer::TYPE_PERSON => 'Persona natural', Customer::TYPE_BUSINESS => 'Empresa o negocio'], true, Customer::TYPE_PERSON),
-                'national_id' => self::text('DNI / RUC', false, 11),
+                'national_id' => self::text('DNI / RUC', true, 11),
                 'first_name' => self::text('Nombres', false, 100),
                 'last_name' => self::text('Apellidos', false, 100),
                 'business_name' => self::text('Razón social', false, 200),

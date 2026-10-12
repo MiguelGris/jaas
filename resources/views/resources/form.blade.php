@@ -103,7 +103,7 @@
                     $customerRequiredGroup = $resource === 'customers'
                         ? match ($name) {
                             'first_name', 'last_name' => 'person',
-                            'national_id', 'business_name' => 'business',
+                            'business_name' => 'business',
                             default => null,
                         }
                         : null;
@@ -185,7 +185,7 @@
                         marker.classList.toggle('hidden', marker.dataset.customerRequired !== (isBusiness ? 'business' : 'person'));
                     });
 
-                    documentInput.required = isBusiness;
+                    documentInput.required = true;
                     documentInput.maxLength = isBusiness ? 11 : 8;
                     documentInput.pattern = isBusiness ? '[0-9]{11}' : '[0-9]{8}';
                     documentInput.placeholder = isBusiness ? 'RUC de 11 dígitos' : 'DNI de 8 dígitos';
