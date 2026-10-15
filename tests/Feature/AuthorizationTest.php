@@ -71,6 +71,33 @@ class AuthorizationTest extends TestCase
             ->assertSee('Registrar asistencia');
     }
 
+    public function test_permission_catalog_is_hidden_and_inaccessible_even_to_administrators(): void
+    {
+        $permission = Permission::query()->create(['name' => 'users.manage']);
+        foreach (['ADMINISTRATOR', 'OPERATOR'] as $roleName) {
+            $role = Role::query()->create(['name' => $roleName]);
+            $role->permissions()->attach($permission);
+            $this->actingAs($this->user($role, strtolower($roleName).'@permissions.test'));
+            $this->get(route('resources.index', ['resource' => 'users']))->assertOk()
+                ->assertDontSee(route('resources.index', ['resource' => 'permissions']));
+            foreach (['index', 'create', 'show', 'edit'] as $action) {
+                $parameters = ['resource' => 'permissions'];
+                if (in_array($action, ['show', 'edit'], true)) $parameters['record'] = $permission->id;
+                $this->get(route('resources.'.$action, $parameters))->assertForbidden();
+            }
+            $this->post(route('resources.store', ['resource' => 'permissions']), ['name' => 'unsafe.create'])->assertForbidden();
+            $this->put(route('resources.update', ['resource' => 'permissions', 'record' => $permission->id]), ['name' => 'unsafe.update'])->assertForbidden();
+            $this->delete(route('resources.destroy', ['resource' => 'permissions', 'record' => $permission->id]))->assertForbidden();
+            $this->getJson('/api/v1/permissions')->assertForbidden();
+            $this->getJson('/api/v1/permissions/'.$permission->id)->assertForbidden();
+            $this->postJson('/api/v1/permissions', ['name' => 'unsafe.create'])->assertForbidden();
+            $this->patchJson('/api/v1/permissions/'.$permission->id, ['name' => 'unsafe.update'])->assertForbidden();
+            $this->deleteJson('/api/v1/permissions/'.$permission->id)->assertForbidden();
+        }
+        $this->assertDatabaseCount('permissions', 1);
+        $this->assertSame('users.manage', $permission->fresh()->name);
+    }
+
     private function user(Role $role, string $email): User
     {
         return User::query()->create([

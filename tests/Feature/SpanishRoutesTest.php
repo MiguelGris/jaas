@@ -32,7 +32,7 @@ class SpanishRoutesTest extends TestCase
             $url = route('resources.index', ['resource' => $resource]);
             $this->assertStringEndsWith('/gestion/'.$slug, $url);
             $response = $this->get($url);
-            if ($resource === 'late-fee-settings') {
+            if ($resource === 'permissions') { $response->assertForbidden(); } elseif ($resource === 'late-fee-settings') {
                 $response->assertRedirect(route('resources.index', ['resource' => 'settings']));
             } else {
                 $response->assertOk();

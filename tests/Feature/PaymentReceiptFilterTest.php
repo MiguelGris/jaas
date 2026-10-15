@@ -85,7 +85,7 @@ class PaymentReceiptFilterTest extends TestCase
     {
         $user = $this->administrator();
         foreach (\App\Http\Controllers\Web\JassPageController::definitions() as $resource => $definition) {
-            if (in_array($resource, ['settings', 'late-fee-settings'])) {
+            if (in_array($resource, ['settings', 'late-fee-settings', 'permissions'])) {
                 continue;
             }
             $this->actingAs($user)->get(route('resources.index', ['resource' => $resource, 'q' => 'inexistente', 'per_page' => 100]))

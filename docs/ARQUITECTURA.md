@@ -228,6 +228,10 @@ Las pruebas de características cubren, entre otros:
 - Editor visual de permisos asociados a cada rol.
 - Política formal de retención y exportación de la bitácora.
 
+## Catálogo interno de permisos
+
+El catálogo Permisos no aparece en el menú y sus rutas web y API rechazan el acceso, incluso para administradores. Los permisos se mantienen mediante código y seeders; sus relaciones con roles continúan controlando el acceso al sistema. Esta protección evita modificar o borrar por error las claves utilizadas por el código.
+
 ## Compatibilidad del esquema y campos vacíos
 
 La cobranza actual distribuye pagos mediante `payment_allocations`. El campo heredado `payments.invoice_id` continúa definido en relaciones Eloquent y en la validación API; no debe retirarse sin adaptar esas referencias. Los campos `concept`, `service_component` y `fine_component` distinguen pagos separados y preservan el tratamiento de pagos históricos combinados.

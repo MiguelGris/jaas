@@ -34,12 +34,19 @@ final class ResourceAccess
 
     public static function allows(?User $user, string $resource, string $action = 'index'): bool
     {
+        if ($resource === 'permissions') {
+            return false;
+        }
+
         return $user?->role !== null && (self::isAdministrator($user)
             || $user->role->permissions->contains('name', self::permission($resource, $action)));
     }
 
     public static function allowsNavigation(?User $user, array $item): bool
     {
+        if (($item['resource'] ?? null) === 'permissions') {
+            return false;
+        }
         if ($item['admin_only'] ?? false) {
             return self::isAdministrator($user);
         }

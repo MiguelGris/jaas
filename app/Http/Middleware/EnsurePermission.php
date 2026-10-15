@@ -15,6 +15,9 @@ final class EnsurePermission
 
         abort_unless($user !== null && $user->role !== null, 403);
 
+        $resource = $request->route('resource') ?? $this->resourceFromRouteName($request);
+        abort_if($resource === 'permissions', 403, 'El catálogo de permisos se administra internamente.');
+
         // El administrador conserva acceso total aunque cambie el catálogo de
         // permisos; los demás roles deben tener el permiso exacto del módulo.
         if (ResourceAccess::isAdministrator($user)) {

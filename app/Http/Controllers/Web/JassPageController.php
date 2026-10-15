@@ -616,7 +616,7 @@ final class JassPageController extends Controller
             'Reportes' => [
                 ['label' => 'Reportes', 'route_name' => 'reports.index', 'active' => 'reports.*', 'permission' => 'reports.view'],
             ],
-            'Administración' => ['users', 'settings', 'roles', 'permissions', 'audit-logs', ['label' => 'Condonación masiva', 'route_name' => 'waivers.index', 'active' => 'waivers.*', 'admin_only' => true]],
+            'Administración' => ['users', 'settings', 'roles', 'audit-logs', ['label' => 'Condonación masiva', 'route_name' => 'waivers.index', 'active' => 'waivers.*', 'admin_only' => true]],
             'Catálogos' => ['customer-statuses', 'neighborhoods', 'connection-types', 'connection-statuses', 'usage-types', 'payment-methods', 'assembly-types', 'income-types', 'expense-categories'],
         ];
         $definitions = self::definitions();
