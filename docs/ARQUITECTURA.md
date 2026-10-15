@@ -227,3 +227,9 @@ Las pruebas de características cubren, entre otros:
 - Emisión en lote de varios meses desde una sola acción web; actualmente la revisión y emisión manual opera un mes por ejecución y la cobranza permite seleccionar cuotas disponibles.
 - Editor visual de permisos asociados a cada rol.
 - Política formal de retención y exportación de la bitácora.
+
+## Compatibilidad del esquema y campos vacíos
+
+La cobranza actual distribuye pagos mediante `payment_allocations`. El campo heredado `payments.invoice_id` continúa definido en relaciones Eloquent y en la validación API; no debe retirarse sin adaptar esas referencias. Los campos `concept`, `service_component` y `fine_component` distinguen pagos separados y preservan el tratamiento de pagos históricos combinados.
+
+`users.remember_token` da soporte a Recordar mi sesión. `users.email_verified_at` y `password_reset_tokens` permanecen como estructura preparada, sin un flujo activo de verificación de correo o recuperación de contraseña. La decisión actual es conservarlos. Véase la [revisión de base de datos](REVISION_BASE_DATOS_2026-10-14.md).

@@ -1,6 +1,6 @@
 # Documentación del sistema JASS
 
-Documentación actualizada al 5 de octubre de 2026, incluidas las correcciones posteriores a las pruebas con diez clientes y dos ciclos de pago.
+Documentación actualizada al 15 de octubre de 2026. Incluye DNI/RUC obligatorio, cobro separado de mora, condonaciones individuales y masivas, recibos y reportes de condonación, y revisión de campos vacíos de la base de datos.
 
 ## Guías disponibles
 
@@ -11,6 +11,7 @@ Documentación actualizada al 5 de octubre de 2026, incluidas las correcciones p
 | [Reglas de negocio](REGLAS_NEGOCIO.md) | JASS, analistas y desarrollo | Cuotas, vencimientos, mora, pagos, multas, caja, códigos y medidores. |
 | [Reportes e indicadores](REPORTES.md) | Tesorería, contabilidad y auditoría | Fórmulas del dashboard, filtros y contenido de los reportes. |
 | [Arquitectura técnica](ARQUITECTURA.md) | Desarrollo y soporte | Componentes, modelo de datos, seguridad, API interna y pruebas. |
+| [Revisión de base de datos](REVISION_BASE_DATOS_2026-10-14.md) | Soporte y desarrollo | Campos vacíos, usos comprobados y decisión de conservar el esquema. |
 | [Operación y mantenimiento](OPERACION_MANTENIMIENTO.md) | Soporte y administrador técnico | Rutinas, respaldos, tareas automáticas y solución de errores frecuentes. |
 
 ## Alcance actual
@@ -24,7 +25,8 @@ La documentación describe el comportamiento real implementado. Las limitaciones
 ## Convenciones
 
 - **Cuota:** obligación mensual por el servicio. Su código comienza con `FAC`.
-- **Recibo:** comprobante de un pago efectivamente registrado. Su código comienza con `RC`.
+- **Recibo de pago:** comprobante de un pago efectivamente registrado. Su código comienza con `RC`.
+- **Recibo de condonación de servicio:** comprobante de deuda condonada, con código `CD` y dinero recibido S/ 0.00; no suma a caja.
 - **Recaudación:** suma de pagos válidos, sin incluir ingresos adicionales.
 - **Ingreso adicional:** entrada de dinero distinta de un pago de cuota o multa.
 - **Moroso:** titular con una cuota cuyo vencimiento ya pasó o con una multa pendiente.

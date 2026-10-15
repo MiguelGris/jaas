@@ -76,7 +76,7 @@ Cada mes conserva su propia cuota, aunque la obligación de pago se agrupa por c
 
 La fecha de vencimiento se calcula como:
 
-1. Fin del trimestre o semestre al que pertenece el mes.
+1. Fin del ciclo configurado al que pertenece el mes.
 2. Más los meses de gracia configurados en la regla de mora.
 3. Último día del mes resultante.
 
@@ -228,7 +228,7 @@ Una condonación no es un cobro ni suma a caja o a las moras recaudadas de los r
 
 Los pagos históricos combinados mantienen su distribución. Los nuevos pagos separados identifican explícitamente el concepto de cada asignación para que recibos, reportes y anulaciones distingan servicio y mora.
 
-## Campañas de condonación masiva de moras y multas
+## Campañas de condonación masiva de servicio, moras y multas
 
 La opción Administración → Condonación masiva está disponible únicamente para el administrador. La restricción también se valida en el servidor para listar, revisar y aplicar campañas, aunque otro usuario tenga todos los permisos del catálogo.
 
@@ -236,7 +236,7 @@ Se pueden filtrar deudas por cliente, sector, tipo y fecha límite. Las listas p
 
 Una campaña condona todo el saldo, un porcentaje de cada deuda o un importe por cliente aplicado desde sus deudas seleccionadas más antiguas. En la modalidad por importe, cada cliente recibe hasta el importe indicado, limitado a su saldo seleccionado. Si debe menos, se condona solo su deuda; la diferencia no crea un saldo a favor ni aumenta el importe asignado a otro cliente. Antes de aplicar se muestra una revisión paginada con clientes, deudas, saldo actual, importe condonado y saldo restante. El motivo es obligatorio. La confirmación conserva la selección revisada y vuelve a comprobar los saldos; si algún cobro o condonación los cambió, se rechaza toda la campaña para evitar resultados parciales.
 
-La bitácora registra cada condonación de mora o multa y el resumen de la campaña: administrador, fecha, motivo, clientes, cantidad de deudas y totales separados. Las condonaciones no crean recibos ni ingresos de caja. Los pagos anteriores y el importe original de las multas se conservan; solo se reduce el saldo pendiente. Anular un cobro posterior restaura el importe cobrado, conservando la condonación.
+La bitácora registra cada condonación de mora o multa y el resumen de la campaña: administrador, fecha, motivo, clientes, cantidad de deudas y totales separados. Las condonaciones de mora y multa no crean recibos de pago ni ingresos de caja. Las de servicio generan su propio recibo de condonación, sin dinero recibido. Los pagos anteriores y el importe original de las multas se conservan; solo se reduce el saldo pendiente. Anular un cobro posterior restaura el importe cobrado, conservando la condonación.
 
 
 ## Condonación del servicio y recibos mensuales
@@ -256,3 +256,9 @@ La condonación del servicio cubre únicamente la tarifa de servicio pendiente. 
 La mora del ciclo depende del servicio impago. Cuando el servicio está totalmente cubierto, una multa antigua pendiente no sigue aumentando la mora del ciclo. Las cuotas de tarifa cero sin servicio impago no generan mora nueva.
 
 Las asambleas con multas condonadas no pueden reabrirse, cancelarse ni cambiar el importe histórico de la multa. Así se conserva la deuda que respaldó la campaña y se evita reescribir las condonaciones registradas.
+
+## Documento obligatorio del cliente
+
+Al registrar o editar un cliente se exige DNI de exactamente 8 dígitos para una persona natural o RUC de exactamente 11 dígitos para una empresa o negocio. El documento debe ser único. No se aceptan valores vacíos ni espacios; las validaciones se aplican en el formulario web y en el servidor, incluida la API.
+
+Una actualización parcial por API puede omitir el documento si el cliente ya tiene uno válido, pero no puede borrarlo. Los registros históricos sin documento no se completan con números ficticios: deben regularizarse al editarse. No se cambió la columna a NOT NULL.

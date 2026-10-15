@@ -128,6 +128,8 @@ La forma general es:
 | Balance anual | `annual-balance` | `year=AAAA` |
 | Conceptos mensuales | `payment-concepts-monthly` | `month=AAAA-MM` |
 | Conceptos anuales | `payment-concepts-annual` | `year=AAAA` |
+| Condonaciones de servicio | `service-waivers` | `year=AAAA` |
+| Condonaciones anuales de moras y multas | `late-fee-fine-waivers-annual` | `year=AAAA` |
 | Morosos | `debtors` | Ninguno |
 | Antigüedad | `debt-aging` | Ninguno |
 | Medios de pago | `payment-methods` | `month=AAAA-MM` |

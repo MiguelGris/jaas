@@ -17,7 +17,7 @@
 1. Confirma que las conexiones, clientes y predios activos estén correctamente configurados.
 2. Verifica asignaciones de uso vigentes.
 3. Verifica la tarifa del año para cada uso.
-4. Comprueba el ciclo trimestral o semestral.
+4. Comprueba la duración del ciclo configurado en meses.
 5. Comprueba la configuración de mora.
 6. Ejecuta `php artisan schedule:list` y valida la tarea mensual.
 
@@ -43,7 +43,7 @@ El comando informa cuántas cuotas nuevas creó. Un resultado de cero puede sign
 
 Para diagnosticarlo sin crear cuotas, abre **Cuotas → Revisar y generar cuotas**, selecciona el mes y revisa cada causa. También permite recuperar el mes con motivo y confirmación. Usa un titular específico para acotar la recuperación; dejarlo vacío revisa todas las conexiones. `billing_last_manual_run` muestra la última emisión manual que creó cuotas.
 
-Las claves vigentes son `billing_period_months` (3 o 6) y `billing_issue_day` (1–28). Las claves históricas con otros nombres no sustituyen estas configuraciones. Gracia e importe de mora tienen su propio catálogo y vigencias. La interfaz valida los valores y no permite renombrar la clave de un registro existente.
+Las claves vigentes son `billing_period_months` (entero positivo, incluido 1 para pago mensual) y `billing_issue_day` (1–28). Las claves históricas con otros nombres no sustituyen estas configuraciones. Gracia e importe de mora tienen su propio catálogo y vigencias. La interfaz valida los valores y no permite renombrar la clave de un registro existente.
 
 ### Cierre de caja
 
@@ -138,7 +138,7 @@ Revisa además:
 - Modalidad de pago fijo.
 - Tipo de uso vigente.
 - Tarifa del año.
-- Ciclo de 3 o 6 meses.
+- Duración y vigencia del ciclo configurado.
 
 El log principal se encuentra en `storage/logs/laravel.log`.
 
@@ -237,3 +237,7 @@ Nunca cambies la protección de `tests/TestCase.php` para apuntar las pruebas a 
 6. Crea un respaldo antes de cualquier corrección.
 7. Corrige mediante la interfaz cuando exista un flujo soportado.
 8. Documenta la causa, la corrección y el commit desplegado.
+
+## Revisión de campos vacíos
+
+La [revisión del 14/10/2026](REVISION_BASE_DATOS_2026-10-14.md) no produjo cambios de esquema ni borrados de datos. Una columna completamente vacía o una tabla sin filas no debe eliminarse por ese único motivo. Deben revisarse validaciones, relaciones, servicios, consultas y dependencias de Laravel antes de preparar una migración. Las cantidades del informe son una fotografía de esa instalación y fecha.

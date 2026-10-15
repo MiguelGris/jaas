@@ -7,13 +7,16 @@ La interfaz está en español, es adaptable a computadoras y teléfonos, y está
 ## Funcionalidades implementadas
 
 - Consulta pública de deuda mediante DNI de 8 dígitos o RUC de 11 dígitos.
-- Gestión de clientes, predios, conexiones y tipos de uso.
+- Gestión de clientes, predios, conexiones y tipos de uso; DNI de 8 dígitos o RUC de 11 obligatorio al registrar y editar clientes.
+- Listados con filtros y tamaño de página seleccionable de 10, 20, 50 o 100 registros.
 - Modalidad de pago fijo o con medidor por conexión; pago fijo es el valor predeterminado.
 - Registro y validación de medidores y lecturas de consumo.
 - Tarifas anuales para cuota fija y precio por metro cúbico.
 - Generación mensual automática e idempotente de cuotas fijas y por consumo medido; revisión y emisión manual desde la web con diagnóstico por conexión.
 - Ciclos de pago configurables en meses enteros positivos, con periodo de gracia configurable.
-- Cálculo de mora mensual después del vencimiento.
+- Cálculo de mora por ciclo después del vencimiento, con cobro independiente del servicio y detención al cubrir el servicio del ciclo.
+- Condonación individual de servicio y mora; campañas masivas de servicio, mora y multas reservadas al administrador y registradas en bitácora.
+- Recibos de servicio condonado e informes de condonaciones de servicio y de moras y multas anuales, sin ingreso a caja.
 - Cobranza por DNI, nombres o apellidos, seleccionando cuotas y multas.
 - Recibos de pago con ancho seleccionable de 58 u 80 mm, número de operación automático y anulación controlada.
 - Ingresos, egresos, saldo en caja y cierres mensuales automáticos.
@@ -64,6 +67,7 @@ La configuración completa de MySQL, Windows/XAMPP, producción y el programador
 - [Reportes e indicadores](docs/REPORTES.md)
 - [Arquitectura técnica y API interna](docs/ARQUITECTURA.md)
 - [Operación y mantenimiento](docs/OPERACION_MANTENIMIENTO.md)
+- [Revisión de base de datos, 14/10/2026](docs/REVISION_BASE_DATOS_2026-10-14.md)
 - [Correcciones de funcionamiento y facilidad de uso, 05/10/2026](docs/CORRECCIONES_2026-10-05.md)
 
 ## Generación automática de cuotas

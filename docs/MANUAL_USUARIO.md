@@ -80,7 +80,7 @@ Una cuota es una obligación mensual (`FAC26-000001`), no un comprobante de pago
 - **Cuotas pendientes** muestra toda obligación con saldo por pagar, aunque todavía esté dentro del plazo.
 - **Morosidad** muestra solamente cuotas cuyo vencimiento ya pasó y todas las multas pendientes.
 
-La fecha de vencimiento depende del ciclo trimestral o semestral y de los meses de gracia. La mora empieza al día siguiente del vencimiento.
+La fecha de vencimiento depende del ciclo configurado en meses y de los meses de gracia. La mora empieza al día siguiente del vencimiento.
 
 ## 6. Cobranza y recibos
 
@@ -203,3 +203,13 @@ La **Bitácora de auditoría** registra altas, cambios y eliminaciones con usuar
 ## 12. Eliminación de catálogos
 
 Los catálogos muestran la opción **Eliminar**. Si un valor ya está relacionado con clientes, conexiones, tarifas u otros registros, la base de datos impide borrarlo y el sistema muestra una advertencia. En ese caso, corrige o reasigna primero la información dependiente.
+
+## Documento obligatorio del cliente
+
+Al registrar o editar un cliente se exige DNI de exactamente 8 dígitos para una persona natural o RUC de exactamente 11 dígitos para una empresa o negocio. El documento debe ser único. No se aceptan valores vacíos ni espacios; las validaciones se aplican en el formulario web y en el servidor, incluida la API.
+
+Una actualización parcial por API puede omitir el documento si el cliente ya tiene uno válido, pero no puede borrarlo. Los registros históricos sin documento no se completan con números ficticios: deben regularizarse al editarse. No se cambió la columna a NOT NULL.
+
+## Filtros y tamaño de las listas
+
+Las listas de clientes, recibos y demás pantallas con selector de tamaño permiten mostrar 10, 20, 50 o 100 registros por página. Usa la búsqueda y los filtros disponibles antes de recorrer las páginas. En Recibos se incluyen pagos y condonaciones de servicio; cada registro tiene su enlace de impresión.
