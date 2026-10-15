@@ -94,13 +94,13 @@
 
             <main id="main-content" tabindex="-1" class="mx-auto w-full max-w-7xl p-4 sm:p-8">
                 @if (session('success'))
-                    <div class="mb-6 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">
+                    <div class="mx-auto mb-6 flex max-w-3xl items-start justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">
                         <span class="font-bold">✓</span><span>{{ session('success') }}</span>
                     </div>
                 @endif
 
                 @if (session('error'))
-                    <div class="mb-6 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">
+                    <div class="mx-auto mb-6 flex max-w-3xl items-start justify-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">
                         <span class="font-bold">!</span><span>{{ session('error') }}</span>
                     </div>
                 @endif
@@ -157,6 +157,7 @@
             }
         })();
     </script>
+    @include('partials.centered-dialog')
     <script src="{{ asset('js/usability.js') }}" defer></script>
     @stack('scripts')
 </body>

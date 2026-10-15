@@ -52,3 +52,17 @@ table td { vertical-align: middle; }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; animation-duration: 0s !important; }
 }
+
+/* Explicit margins override Tailwind's reset and center every modal in the viewport. */
+dialog:modal {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: min(32rem, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: white;
+    color: #0f172a;
+}
+dialog::backdrop { background: rgb(15 23 42 / 50%); }

@@ -999,7 +999,7 @@ final class JassPageController extends Controller
                 'active' => self::checkbox('Activo', true),
             ], ['meter_number', 'connection_id', 'initial_reading', 'installed_on', 'active']),
             'meter-readings' => self::resource('Lecturas', 'Lectura', MeterReading::class, [
-                'meter_id' => self::select('Medidor', Meter::class, 'meter', true, 'meter_number'),
+                'meter_id' => self::select('Medidor', Meter::class, 'meter', true, 'meter_number', true),
                 'read_on' => self::date('Fecha de lectura'),
                 'previous_reading' => self::readonlyNumber('Lectura anterior'),
                 'current_reading' => self::number('Lectura actual', true, 0),

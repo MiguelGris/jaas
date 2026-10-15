@@ -1,10 +1,92 @@
 (() => {
+    const messageDialog = document.getElementById('jass-message-dialog');
+    if (messageDialog) {
+        const title = document.getElementById('jass-message-title');
+        const text = document.getElementById('jass-message-text');
+        const cancel = document.getElementById('jass-message-cancel');
+        const accept = document.getElementById('jass-message-accept');
+        let pending = null;
+        const approved = new WeakSet();
+        const open = (message, confirmation = null) => {
+            if (messageDialog.open) return;
+            pending = confirmation;
+            title.textContent = confirmation ? 'Confirmar operación' : 'Aviso';
+            text.textContent = message;
+            cancel.hidden = !confirmation;
+            accept.textContent = confirmation ? 'Confirmar' : 'Entendido';
+            messageDialog.showModal();
+            (confirmation ? cancel : accept).focus();
+        };
+        window.jassAlert = message => open(message);
+        document.addEventListener('submit', event => {
+            const form = event.target;
+            if (!form.matches('form[data-confirm]')) return;
+            if (approved.delete(form)) return;
+            event.preventDefault();
+            open(form.dataset.confirm, { form, submitter: event.submitter });
+        }, true);
+        cancel.addEventListener('click', () => messageDialog.close());
+        accept.addEventListener('click', () => {
+            const operation = pending;
+            messageDialog.close();
+            if (!operation) return;
+            approved.add(operation.form);
+            try {
+                operation.form.requestSubmit(operation.submitter ?? undefined);
+            } finally {
+                approved.delete(operation.form);
+            }
+        });
+        messageDialog.addEventListener('close', () => { pending = null; });
+    }
+
     // Only dirty operational forms prompt; report filters and logout never do.
     document.querySelectorAll('form[data-warn-unsaved]').forEach(form => {
         let dirty = false;
         form.addEventListener('input', () => dirty = true);
         form.addEventListener('change', () => dirty = true);
-        form.addEventListener('submit', event => { queueMicrotask(() => { if (!event.defaultPrevented) dirty = false; }); });
+        form.addEventListener('submit', event => { queueMicrotask(() => {
+    const messageDialog = document.getElementById('jass-message-dialog');
+    if (messageDialog) {
+        const title = document.getElementById('jass-message-title');
+        const text = document.getElementById('jass-message-text');
+        const cancel = document.getElementById('jass-message-cancel');
+        const accept = document.getElementById('jass-message-accept');
+        let pending = null;
+        const approved = new WeakSet();
+        const open = (message, confirmation = null) => {
+            if (messageDialog.open) return;
+            pending = confirmation;
+            title.textContent = confirmation ? 'Confirmar operación' : 'Aviso';
+            text.textContent = message;
+            cancel.hidden = !confirmation;
+            accept.textContent = confirmation ? 'Confirmar' : 'Entendido';
+            messageDialog.showModal();
+            (confirmation ? cancel : accept).focus();
+        };
+        window.jassAlert = message => open(message);
+        document.addEventListener('submit', event => {
+            const form = event.target;
+            if (!form.matches('form[data-confirm]')) return;
+            if (approved.delete(form)) return;
+            event.preventDefault();
+            open(form.dataset.confirm, { form, submitter: event.submitter });
+        }, true);
+        cancel.addEventListener('click', () => messageDialog.close());
+        accept.addEventListener('click', () => {
+            const operation = pending;
+            messageDialog.close();
+            if (!operation) return;
+            approved.add(operation.form);
+            try {
+                operation.form.requestSubmit(operation.submitter ?? undefined);
+            } finally {
+                approved.delete(operation.form);
+            }
+        });
+        messageDialog.addEventListener('close', () => { pending = null; });
+    }
+ if (!event.defaultPrevented) dirty = false; }); });
         window.addEventListener('beforeunload', event => {
             if (!dirty) return;
             event.preventDefault(); event.returnValue = '';

@@ -91,7 +91,7 @@
         @if ($lateFees->isNotEmpty() && App\Support\ResourceAccess::allows(auth()->user(), 'late-fee-settings'))
             <details class="mt-6 rounded-xl border border-amber-200 bg-white p-5" @if(old('waiver_reason')) open @endif>
                 <summary class="cursor-pointer font-bold">Condonar moras por campaña</summary>
-                <form method="POST" action="{{ route('collections.waive') }}" class="mt-4 space-y-4" onsubmit="return confirm('¿Confirmar la condonación de las moras seleccionadas? Quedará registrada en la bitácora.');">
+                <form method="POST" action="{{ route('collections.waive') }}" class="mt-4 space-y-4" data-confirm="¿Confirmar la condonación de las moras seleccionadas? Quedará registrada en la bitácora.">
                     @csrf<input type="hidden" name="customer_id" value="{{ $customer->id }}">
                     <p class="text-sm">Selecciona las deudas a condonar. La condonación reduce la mora pendiente; no genera un cobro. Si el servicio sigue impago, la mora futura seguirá aumentando.</p>
                     @foreach($lateFees as $fee)<label class="flex items-center gap-3"><input type="checkbox" name="waiver_invoices[]" value="{{ $fee->id }}" @checked(in_array((string)$fee->id, array_map('strval', old('waiver_invoices', [])), true))><span>{{ $fee->cycleLabel() }} · {{ $fee->connection->supply_code }} · S/ {{ number_format($fee->late_fee_balance, 2) }}</span></label>@endforeach
@@ -106,13 +106,13 @@
         @endif
         @if($serviceWaiverInvoices->isNotEmpty() && App\Support\ResourceAccess::allows(auth()->user(),'payments','store'))
         <details class="mt-6 rounded-xl border border-sky-200 bg-white p-5" @if(old('service_reason')) open @endif><summary class="cursor-pointer font-bold">Condonar servicio y emitir recibos mensuales</summary>
-        <form method="POST" action="{{ route('collections.waive-service') }}" class="mt-4 space-y-4" onsubmit="return confirm('¿Confirmar la condonación del servicio seleccionado y emitir sus recibos? Quedará registrada en la bitácora.');">@csrf<input type="hidden" name="customer_id" value="{{ $customer->id }}"><p class="text-sm">Selecciona las cuotas mensuales a condonar. El importe se aplica únicamente al servicio pendiente, sin afectar moras ni multas. No se genera saldo a favor ni ingreso de caja.</p>
+        <form method="POST" action="{{ route('collections.waive-service') }}" class="mt-4 space-y-4" data-confirm="¿Confirmar la condonación del servicio seleccionado y emitir sus recibos? Quedará registrada en la bitácora.">@csrf<input type="hidden" name="customer_id" value="{{ $customer->id }}"><p class="text-sm">Selecciona las cuotas mensuales a condonar. El importe se aplica únicamente al servicio pendiente, sin afectar moras ni multas. No se genera saldo a favor ni ingreso de caja.</p>
         @foreach($serviceWaiverInvoices as $invoice)<label class="flex items-center gap-3"><input type="checkbox" name="service_invoices[]" value="{{ $invoice->id }}" @checked(in_array((string)$invoice->id,array_map('strval',old('service_invoices',[]))))><span>{{ $invoice->period_starts_on->format('m/Y') }} · {{ $invoice->connection->supply_code }} · S/ {{ number_format($invoice->waivable_service_balance,2) }}</span></label>@endforeach
         <div class="grid gap-3 sm:grid-cols-2"><div><label for="service-mode" class="block font-semibold">Condonación</label><select id="service-mode" name="service_mode" class="mt-2 w-full">@foreach(['all'=>'Todo el servicio seleccionado','percentage'=>'Porcentaje de cada cuota','amount'=>'Importe total (S/)'] as $key=>$label)<option value="{{ $key }}" @selected(old('service_mode','all')===$key)>{{ $label }}</option>@endforeach</select></div><div><label for="service-value" class="block font-semibold">Porcentaje o importe</label><input id="service-value" name="service_value" type="number" min="0.01" step="0.01" value="{{ old('service_value') }}" class="mt-2 w-full"><p class="text-sm text-slate-500">Déjalo vacío para condonación total. Un importe se aplica primero a las cuotas más antiguas.</p></div></div><label for="service-reason" class="block font-semibold">Motivo</label><input id="service-reason" name="service_reason" required maxlength="250" value="{{ old('service_reason') }}" class="w-full"><button class="rounded-lg bg-sky-700 px-4 py-3 font-semibold text-white">Condonar servicio y emitir recibos</button></form></details>
         @endif
         @if($serviceWaiverHistory->isNotEmpty())<section class="mt-6 rounded-xl border bg-white p-5"><h3 class="font-bold">Recibos de servicio condonado</h3>@foreach($serviceWaiverHistory as $waiver)<article class="mt-4 border-t pt-3"><p class="text-sm">{{ $waiver->receipt_code }} · {{ $waiver->invoice->period_starts_on->format('m/Y') }} · {{ $waiver->created_at->format('d/m/Y H:i') }} · S/ {{ number_format($waiver->amount,2) }} condonado · {{ $waiver->reason }}</p><a class="mt-2 inline-block font-semibold text-sky-700" href="{{ route('service-waiver-receipts.show',$waiver) }}" target="_blank" rel="noopener">Imprimir recibo mensual</a></article>@endforeach</section>@endif
-        <dialog id="confirm-payment" class="w-full max-w-lg rounded-xl border p-6 shadow-xl">
-            <h2 class="text-xl font-bold">Revisar pago antes de confirmar</h2>
+        <dialog aria-labelledby="confirm-payment-title" id="confirm-payment" class="w-full max-w-lg rounded-xl border p-6 shadow-xl">
+            <h2 id="confirm-payment-title" class="text-xl font-bold">Revisar pago antes de confirmar</h2>
             <p class="mt-2 font-semibold">{{ $customer->display_name }} · {{ $customer->document_label }} {{ $customer->national_id }}</p>
             <ul id="confirm-charges" class="my-4 space-y-2 text-sm"></ul>
             <p id="confirm-method" class="text-sm"></p>
@@ -145,7 +145,7 @@
         if (confirmed || !dialog?.showModal) return;
         event.preventDefault();
         const selected = boxes.filter(box => box.checked);
-        if (!selected.length) { alert('Selecciona al menos una cuota o multa.'); return; }
+        if (!selected.length) { window.jassAlert('Selecciona al menos una cuota, mora o multa.'); return; }
         const list = document.getElementById('confirm-charges'); list.replaceChildren();
         selected.forEach(box => { const item = document.createElement('li'); item.textContent = `${box.dataset.label}: S/ ${Number(box.dataset.amount).toFixed(2)}`; list.append(item); });
         const method = document.getElementById('payment_method_id');

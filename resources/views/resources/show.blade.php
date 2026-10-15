@@ -91,7 +91,7 @@
         </dl>
         @unless (($definition['read_only'] ?? false) || ($definition['immutable'] ?? false) || in_array($resource, ['rates', 'settings', 'late-fee-settings'], true) || ! App\Support\ResourceAccess::allows(auth()->user(), $resource, 'destroy') || ($resource === 'settings' && $record->isAutomatic()))
             <div class="flex justify-end border-t border-slate-100 bg-slate-50 px-5 py-4 sm:px-6">
-                <form method="POST" action="{{ route('resources.destroy', ['resource' => $resource, 'record' => $record->getKey()]) }}" onsubmit="return confirm('¿Eliminar este registro? Esta acción no se puede deshacer.');">@csrf @method('DELETE')<button type="submit" class="rounded-lg px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100">Eliminar</button></form>
+                <form method="POST" action="{{ route('resources.destroy', ['resource' => $resource, 'record' => $record->getKey()]) }}" data-confirm="¿Eliminar este registro? Esta acción no se puede deshacer.">@csrf @method('DELETE')<button type="submit" class="rounded-lg px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100">Eliminar</button></form>
             </div>
         @endunless
     </div>

@@ -162,7 +162,7 @@
                                     <a href="{{ route('resources.edit', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="ml-3 text-sm font-semibold text-sky-700 hover:text-sky-800">{{ $resource === 'rates' ? 'Nueva versión' : 'Editar' }}</a>
                                 @endunless
                                 @if (($definition['delete_on_index'] ?? false) && App\Support\ResourceAccess::allows(auth()->user(), $resource, 'destroy'))
-                                    <form method="POST" action="{{ route('resources.destroy', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="inline" onsubmit="return confirm({{ Js::from($deleteConfirmation) }});">
+                                    <form method="POST" action="{{ route('resources.destroy', ['resource' => $resource, 'record' => $record->getKey()]) }}" class="inline" data-confirm="{{ $deleteConfirmation }}">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="ml-3 text-sm font-semibold text-rose-700 hover:text-rose-800">Eliminar</button>
