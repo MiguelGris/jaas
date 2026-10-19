@@ -152,7 +152,7 @@ class BusinessCustomerTest extends TestCase
         $report = app(ReportService::class)->build('work-exemptions');
         $names = collect($report['rows'])->pluck(2);
 
-        $this->assertTrue($names->contains('María Mayor'));
+        $this->assertTrue($names->contains('Mayor María'));
         $this->assertFalse($names->contains('Comercial Sin Exoneración S.A.C.'));
     }
 

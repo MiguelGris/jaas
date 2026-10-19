@@ -75,6 +75,7 @@
                     if ($resource === 'settings' && $name === 'key') $value = $record->displayName();
                     if ($resource === 'settings' && $name === 'description') $value = $record->displayDescription();
                     if (isset($field['relation'])) $value = data_get($record, $field['relation'].'.'.$field['options']['label']);
+                    if (isset($field['relation']) && $record->{$field['relation']} instanceof \App\Models\User) $value = $record->{$field['relation']}->display_name;
                     if (isset($field['choices'])) $value = $field['choices'][$value] ?? $value;
                     elseif (is_string($value)) $value = App\Http\Controllers\Web\JassPageController::catalogValueLabel($value);
                     if ($field['type'] === 'checkbox') $value = $value ? 'Sí' : 'No';

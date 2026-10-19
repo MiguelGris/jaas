@@ -66,7 +66,7 @@ class Customer extends JassModel
             return trim((string) $this->business_name) ?: 'Empresa sin razón social';
         }
 
-        return trim(collect([$this->first_name, $this->last_name])->filter()->implode(' ')) ?: 'Cliente sin nombre';
+        return trim(collect([$this->last_name, $this->first_name])->filter()->implode(' ')) ?: 'Cliente sin nombre';
     }
 
     public function getDocumentLabelAttribute(): string

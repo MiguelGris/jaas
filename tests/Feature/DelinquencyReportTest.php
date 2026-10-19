@@ -162,13 +162,13 @@ class DelinquencyReportTest extends TestCase
         $this->actingAs($administrator)
             ->get(route('delinquencies.index'))
             ->assertOk()
-            ->assertDontSee('Ana Prueba');
+            ->assertDontSee('Prueba Ana');
 
         $this->travelTo(Carbon::parse('2026-05-01 12:00:00'));
         $this->actingAs($administrator)
             ->get(route('delinquencies.index'))
             ->assertOk()
-            ->assertSee('Ana Prueba')
+            ->assertSee('Prueba Ana')
             ->assertSee('Cuotas vencidas');
     }
 

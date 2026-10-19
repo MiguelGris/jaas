@@ -37,7 +37,7 @@ class AuditLog extends JassModel
 
     public function getSummaryTextAttribute(): string
     {
-        $actor = $this->user?->name ?? 'Sistema';
+        $actor = $this->user?->display_name ?? 'Sistema';
         if ($this->table_name === 'cash_closings' && $this->action === 'INSERT' && isset($this->new_values['year'], $this->new_values['month'])) {
             $month = Carbon::create((int) $this->new_values['year'], (int) $this->new_values['month'], 1)->translatedFormat('F Y');
 

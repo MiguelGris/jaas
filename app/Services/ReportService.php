@@ -298,7 +298,7 @@ final class ReportService
                 $concepts,
                 $payment->status === Payment::STATUS_VOIDED ? 'Anulado' : 'Válido',
                 (float) $payment->amount,
-                $payment->user?->name ?? '—',
+                $payment->user?->display_name ?? '—',
                 0.0,
                 'sort_at' => $payment->paid_at?->format('YmdHis.u') ?? '',
             ];
@@ -309,7 +309,7 @@ final class ReportService
         $waiverRows = $waivers->map(fn ($waiver) => [
             $waiver->created_at->format('d/m/Y H:i'), $waiver->receipt_code, '—', $customer->national_id ?? '—', $customer->display_name,
             'Condonación', 'Servicio condonado '.$waiver->invoice->period_starts_on->format('m/Y').' · '.$waiver->reason,
-            (float) $waiver->balance_after <= 0 ? 'Condonado' : 'Condonado parcialmente', 0.0, $waiver->user->name, (float) $waiver->amount,
+            (float) $waiver->balance_after <= 0 ? 'Condonado' : 'Condonado parcialmente', 0.0, $waiver->user->display_name, (float) $waiver->amount,
             'sort_at' => $waiver->created_at->format('YmdHis.u'),
         ]);
         $rows = $rows->concat($waiverRows)->sortBy('sort_at')->map(fn ($row) => collect($row)->except('sort_at')->values()->all())->values();
@@ -353,7 +353,7 @@ final class ReportService
             $customer = $waiver->invoice->connection->property->customer;
             return [$waiver->created_at->format('d/m/Y H:i'), $waiver->receipt_code, $customer->customer_code, $customer->display_name,
                 $waiver->invoice->period_starts_on->format('m/Y'), $waiver->invoice->invoice_code, (float) $waiver->amount,
-                (float) $waiver->balance_after, $waiver->reason, $waiver->user->name, $waiver->campaign_id ? '#'.$waiver->campaign_id : 'Individual'];
+                (float) $waiver->balance_after, $waiver->reason, $waiver->user->display_name, $waiver->campaign_id ? '#'.$waiver->campaign_id : 'Individual'];
         });
         return $this->document('Condonaciones de servicio', 'Ejercicio '.$year.' · importes condonados, sin ingresos de caja', 'condonaciones-servicio-'.$year,
             ['Fecha', 'Recibo', 'Cliente', 'Titular', 'Cuota mensual', 'Código de cuota', 'Condonado', 'Saldo después', 'Motivo', 'Autorizado por', 'Campaña'], $rows->all(),
@@ -373,12 +373,12 @@ final class ReportService
             $customer = $waiver->invoice->connection->property->customer;
             return ['date' => $waiver->created_at, 'type' => 'Mora', 'code' => $waiver->invoice->invoice_code, 'customer_id' => $customer->id, 'customer_code' => $customer->customer_code,
                 'customer' => $customer->display_name, 'detail' => $waiver->invoice->cycleLabel(), 'amount' => (float) $waiver->amount, 'reason' => $waiver->reason,
-                'user' => $waiver->user->name, 'campaign' => $waiver->campaign_id ? '#'.$waiver->campaign_id : 'Individual', 'key' => 'mora:'.$waiver->id];
+                'user' => $waiver->user->display_name, 'campaign' => $waiver->campaign_id ? '#'.$waiver->campaign_id : 'Individual', 'key' => 'mora:'.$waiver->id];
         })->concat($fines->map(function ($waiver): array {
             $customer = $waiver->fine->customer;
             return ['date' => $waiver->created_at, 'type' => 'Multa', 'code' => $waiver->fine->fine_code, 'customer_id' => $customer->id, 'customer_code' => $customer->customer_code,
                 'customer' => $customer->display_name, 'detail' => $waiver->fine->reason, 'amount' => (float) $waiver->amount, 'reason' => $waiver->reason,
-                'user' => $waiver->user->name, 'campaign' => '#'.$waiver->campaign_id, 'key' => 'fine:'.$waiver->id];
+                'user' => $waiver->user->display_name, 'campaign' => '#'.$waiver->campaign_id, 'key' => 'fine:'.$waiver->id];
         }))->sortBy(fn ($entry) => $entry['date']->format('YmdHis.u').'-'.$entry['key'])->values();
         $monthly = collect(range(1, 12))->map(function ($month) use ($year, $entries): array {
             $items = $entries->filter(fn ($entry) => $entry['date']->month === $month);

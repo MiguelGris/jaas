@@ -213,3 +213,7 @@ Una actualización parcial por API puede omitir el documento si el cliente ya ti
 ## Filtros y tamaño de las listas
 
 Las listas de clientes, recibos y demás pantallas con selector de tamaño permiten mostrar 25, 50, 100 o 200 registros por página, con 25 por defecto. Usa la búsqueda y los filtros disponibles antes de recorrer las páginas. En Recibos se incluyen pagos y condonaciones de servicio; cada registro tiene su enlace de impresión.
+
+## Presentación de nombres
+
+Los titulares y usuarios se muestran como Apellidos Nombres en vistas, selectores, recibos y reportes PDF/Excel. Las instituciones mantienen su razón social. Este orden es de presentación: no intercambia los campos almacenados ni modifica los documentos o las relaciones del padrón.

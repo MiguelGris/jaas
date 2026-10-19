@@ -18,6 +18,11 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    public function getDisplayNameAttribute(): string
+    {
+        return trim(collect([$this->last_name, $this->name])->filter()->implode(' ')) ?: 'Usuario sin nombre';
+    }
+
     public function role()
     {
         return $this->belongsTo(Role::class);

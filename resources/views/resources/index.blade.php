@@ -42,7 +42,7 @@
 
     @if ($resource === 'audit-logs')
         <form method="GET" class="mb-6 grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
-            <input type="hidden" name="per_page" value="{{ $perPage }}"><div><label for="audit-user" class="block font-semibold">Usuario</label><select id="audit-user" name="user_id" class="w-full"><option value="">Todos</option>@foreach($auditUsers as $user)<option value="{{ $user->id }}" @selected((string)($auditFilters['user_id'] ?? '') === (string)$user->id)>{{ $user->name }}</option>@endforeach</select></div>
+            <input type="hidden" name="per_page" value="{{ $perPage }}"><div><label for="audit-user" class="block font-semibold">Usuario</label><select id="audit-user" name="user_id" class="w-full"><option value="">Todos</option>@foreach($auditUsers as $user)<option value="{{ $user->id }}" @selected((string)($auditFilters['user_id'] ?? '') === (string)$user->id)>{{ $user->display_name }}</option>@endforeach</select></div>
             <div><label for="audit-from" class="block font-semibold">Desde</label><input class="w-full" id="audit-from" type="date" name="from" value="{{ $auditFilters['from'] ?? '' }}"></div>
             <div><label for="audit-to" class="block font-semibold">Hasta</label><input class="w-full" id="audit-to" type="date" name="to" value="{{ $auditFilters['to'] ?? '' }}"></div>
             <div><label for="audit-q" class="block font-semibold">Módulo o registro</label><input class="w-full" id="audit-q" type="search" name="q" maxlength="100" value="{{ $auditFilters['q'] ?? '' }}" placeholder="Clientes, caja o número"></div>
@@ -101,6 +101,7 @@
                     @foreach($columns as $name => $field)
                         @php
                             $mobileValue = isset($field['relation']) ? data_get($record, $field['relation'].'.'.$field['options']['label']) : $record->getAttribute($name);
+                            if (isset($field['relation']) && $record->{$field['relation']} instanceof \App\Models\User) $mobileValue = $record->{$field['relation']}->display_name;
                             if (isset($field['choices'])) $mobileValue = $field['choices'][$mobileValue] ?? $mobileValue;
                             elseif (is_string($mobileValue)) $mobileValue = App\Http\Controllers\Web\JassPageController::catalogValueLabel($mobileValue);
                             if ($field['type'] === 'number' && $mobileValue !== null) $mobileValue = $name === 'year' ? (string)(int)$mobileValue : number_format((float)$mobileValue, ($field['integer'] ?? false) ? 0 : 2);
@@ -135,6 +136,7 @@
                                     $value = $record->getAttribute($name);
                                     if (isset($field['relation'])) {
                                         $value = data_get($record, $field['relation'].'.'.$field['options']['label']);
+                                        if ($record->{$field['relation']} instanceof \App\Models\User) $value = $record->{$field['relation']}->display_name;
                                     }
                                     if (isset($field['choices'])) {
                                         $value = $field['choices'][$value] ?? $value;

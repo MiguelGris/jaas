@@ -102,7 +102,7 @@
             </details>
         @endif
         @if($waiverHistory->isNotEmpty())
-            <section class="mt-6 rounded-xl border bg-white p-5"><h3 class="font-bold">Últimas condonaciones del cliente</h3>@foreach($waiverHistory as $waiver)<p class="mt-3 text-sm">{{ $waiver->created_at->format('d/m/Y H:i') }} · {{ $waiver->invoice->cycleLabel() }} · S/ {{ number_format($waiver->amount, 2) }} · {{ $waiver->reason }} · {{ $waiver->user->name }}</p>@endforeach</section>
+            <section class="mt-6 rounded-xl border bg-white p-5"><h3 class="font-bold">Últimas condonaciones del cliente</h3>@foreach($waiverHistory as $waiver)<p class="mt-3 text-sm">{{ $waiver->created_at->format('d/m/Y H:i') }} · {{ $waiver->invoice->cycleLabel() }} · S/ {{ number_format($waiver->amount, 2) }} · {{ $waiver->reason }} · {{ $waiver->user->display_name }}</p>@endforeach</section>
         @endif
         @if($serviceWaiverInvoices->isNotEmpty() && App\Support\ResourceAccess::allows(auth()->user(),'payments','store'))
         <details class="mt-6 rounded-xl border border-sky-200 bg-white p-5" @if(old('service_reason')) open @endif><summary class="cursor-pointer font-bold">Condonar servicio y emitir recibos mensuales</summary>

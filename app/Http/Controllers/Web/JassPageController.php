@@ -277,7 +277,7 @@ final class JassPageController extends Controller
         $auditUsers = collect();
         if ($resource === 'audit-logs') {
             $auditFilters = $request->validate(['user_id' => ['nullable', 'integer', 'exists:users,id'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'q' => ['nullable', 'string', 'max:100']]);
-            $auditUsers = User::query()->orderBy('name')->get(['id', 'name']);
+            $auditUsers = User::query()->orderBy('last_name')->orderBy('name')->get(['id', 'name', 'last_name']);
             if (! empty($auditFilters['user_id'])) {
                 $records->where('user_id', $auditFilters['user_id']);
             }
@@ -757,6 +757,11 @@ final class JassPageController extends Controller
                 ->all();
         }
 
+        if ($model === User::class) {
+            return User::query()->orderBy('last_name')->orderBy('name')->get()
+                ->mapWithKeys(fn (User $user) => [$user->id => $user->display_name])->all();
+        }
+
         if ($model === Property::class) {
             return Property::query()
                 ->with('customer')
@@ -956,8 +961,8 @@ final class JassPageController extends Controller
                 'customer_code' => self::code('Código de cliente'),
                 'customer_type' => self::choice('Tipo de cliente', [Customer::TYPE_PERSON => 'Persona natural', Customer::TYPE_BUSINESS => 'Empresa o negocio'], true, Customer::TYPE_PERSON),
                 'national_id' => self::text('DNI / RUC', true, 11),
-                'first_name' => self::text('Nombres', false, 100),
                 'last_name' => self::text('Apellidos', false, 100),
+                'first_name' => self::text('Nombres', false, 100),
                 'business_name' => self::text('Razón social', false, 200),
                 'display_name' => self::field('Cliente / razón social', 'text', false, ['readonly' => true]),
                 'birth_date' => self::date('Fecha de nacimiento', false),
@@ -1125,14 +1130,14 @@ final class JassPageController extends Controller
             'expense-categories' => self::singleName('Categorías de egreso', 'Categoría de egreso', ExpenseCategory::class),
             'users' => self::resource('Usuarios del sistema', 'Usuario', User::class, [
                 'user_code' => self::code('Código de usuario'),
-                'name' => self::text('Nombres', true, 100),
                 'last_name' => self::text('Apellidos', false, 100),
+                'name' => self::text('Nombres', true, 100),
                 'email' => self::field('Correo electrónico', 'email', true, ['max' => 150, 'unique' => true]),
                 'password' => self::password('Contraseña nueva'),
                 'role_id' => self::select('Rol', Role::class, 'role'),
                 'active' => self::checkbox('Usuario activo', true),
                 'last_login_at' => self::field('Último acceso', 'datetime-local', false, ['readonly' => true]),
-            ], ['user_code', 'name', 'last_name', 'email', 'role_id', 'active']),
+            ], ['user_code', 'last_name', 'name', 'email', 'role_id', 'active']),
             'roles' => self::catalog('Roles', 'Rol', Role::class, 255, false),
             'permissions' => self::catalog('Permisos', 'Permiso', Permission::class, 255, false),
             'settings' => self::resource('Configuraciones', 'Configuración', Setting::class, [

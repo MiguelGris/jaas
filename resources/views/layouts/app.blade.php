@@ -81,7 +81,7 @@
                 <div class="flex shrink-0 items-center gap-1 sm:gap-3">
                     <details class="group relative">
                         <summary class="flex max-w-40 cursor-pointer list-none items-center gap-1 rounded-lg px-2 py-2 text-right text-xs text-slate-500 transition hover:bg-slate-100 sm:max-w-56 sm:gap-2 sm:px-3 [&::-webkit-details-marker]:hidden">
-                            <span class="min-w-0"><span class="block truncate font-semibold text-slate-700">{{ auth()->user()->name }}</span><span class="hidden truncate sm:block">{{ App\Http\Controllers\Web\JassPageController::roleLabel(auth()->user()->role?->name) }}</span></span>
+                            <span class="min-w-0"><span class="block truncate font-semibold text-slate-700">{{ auth()->user()->display_name }}</span><span class="hidden truncate sm:block">{{ App\Http\Controllers\Web\JassPageController::roleLabel(auth()->user()->role?->name) }}</span></span>
                             <span aria-hidden="true" class="text-sm transition group-open:rotate-180">⌄</span>
                         </summary>
                         <div class="absolute right-0 z-30 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 text-sm shadow-xl">

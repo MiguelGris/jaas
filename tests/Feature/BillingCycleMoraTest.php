@@ -207,7 +207,7 @@ class BillingCycleMoraTest extends TestCase
         [, $customers] = $this->context();
         $this->seed(DemoUnpaidCyclesSeeder::class);
         $demo = Customer::query()->where('notes', 'CLIENTE_DE_PRUEBA_CICLOS_IMPAGOS_2026')->firstOrFail();
-        $this->assertSame('Prueba Ciclos impagos', $demo->display_name);
+        $this->assertSame('Ciclos impagos Prueba', $demo->display_name);
         $this->assertDatabaseCount('invoices', 6);
         $this->assertSame(0, Invoice::query()->whereHas('connection.property', fn ($q) => $q->where('customer_id', $customers->first()->id))->count());
         $this->seed(DemoUnpaidCyclesSeeder::class);

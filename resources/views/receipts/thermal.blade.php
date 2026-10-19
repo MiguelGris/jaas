@@ -89,7 +89,7 @@
         <div class="total"><span>TOTAL PAGADO</span><span>S/ {{ number_format((float) $payment->amount, 2) }}</span></div>
         @if ($payment->notes)<p class="muted">Obs.: {{ $payment->notes }}</p>@endif
         <hr class="divider">
-        <p class="center muted">Atendido por: {{ $payment->user ? trim($payment->user->name.' '.$payment->user->last_name) : 'Sistema' }}<br>Conserve este recibo como constancia de pago.</p>
+        <p class="center muted">Atendido por: {{ $payment->user ? $payment->user->display_name : 'Sistema' }}<br>Conserve este recibo como constancia de pago.</p>
     </main>
 
 <script>

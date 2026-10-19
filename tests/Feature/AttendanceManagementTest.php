@@ -146,7 +146,7 @@ class AttendanceManagementTest extends TestCase
             ->assertOk()
             ->assertSee('Lectura del DNI')
             ->assertSee('Asistencia confirmada')
-            ->assertSee('Cliente Asistencia')
+            ->assertSee('Asistencia Cliente')
             ->assertSee('1 de 1 registran asistencia')
             ->assertSee('18:42:15')
             ->assertSee('text-4xl', false)
