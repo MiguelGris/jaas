@@ -189,9 +189,11 @@ final class ReportController extends Controller
     /** @param array{title: string, subtitle: string, filename: string, headers: list<string>, rows: list<list<string|int|float>>, summary: array<string, string|int|float>, currency_columns: list<int>, intro_tables?: list<array{title: string, headers: list<string>, rows: list<list<string|int|float>>}>} $document */
     private function pdf(array $document): Response
     {
+        $isRegister = ($document['pdf_view'] ?? null) === 'reports.register-pdf';
+
         // Large registers need more than the default 128 MB while Dompdf builds its layout.
         // This changes only the current export request, never the server's PHP configuration.
-        if (($document['pdf_view'] ?? null) === 'reports.service-register-pdf') {
+        if ($isRegister) {
             $limit = (string) ini_get('memory_limit');
             $bytes = (int) $limit * match (strtolower(substr($limit, -1))) {
                 'g' => 1024 ** 3, 'm' => 1024 ** 2, 'k' => 1024, default => 1,
@@ -208,7 +210,7 @@ final class ReportController extends Controller
         $dompdf->loadHtml(view($document['pdf_view'] ?? 'reports.pdf', ['report' => $document])->render());
         $dompdf->setPaper('A4', count($document['headers']) > 5 ? 'landscape' : 'portrait');
         $dompdf->render();
-        if (($document['pdf_view'] ?? null) === 'reports.service-register-pdf') {
+        if ($isRegister) {
             $canvas = $dompdf->getCanvas();
             $canvas->page_text($canvas->get_width() - 110, $canvas->get_height() - 18,
                 'Página {PAGE_NUM} de {PAGE_COUNT}', $dompdf->getFontMetrics()->getFont('DejaVu Sans'), 7);

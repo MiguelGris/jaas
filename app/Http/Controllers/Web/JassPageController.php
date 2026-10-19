@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Support\ListPagination;
 use App\Models\Assembly;
 use App\Models\AssemblyAttendance;
 use App\Models\AssemblyType;
@@ -211,10 +212,10 @@ final class JassPageController extends Controller
         }
         $listFilters = $request->validate([
             'q' => ['nullable', 'string', 'max:150'],
-            'per_page' => ['nullable', 'integer', Rule::in([25, 50, 100, 200])],
+            'per_page' => ListPagination::rules(),
         ]);
         $listSearch = trim((string) ($listFilters['q'] ?? ''));
-        $perPage = (int) ($listFilters['per_page'] ?? 25);
+        $perPage = (int) ($listFilters['per_page'] ?? ListPagination::DEFAULT_SIZE);
         if (! in_array($resource, ['customers', 'audit-logs'], true) && $listSearch !== '') {
             foreach (preg_split('/\s+/', $listSearch, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $term) {
                 $records->where(function ($query) use ($columns, $term): void {

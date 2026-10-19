@@ -11,6 +11,7 @@ Documentación actualizada al 19 de octubre de 2026. Incluye DNI/RUC obligatorio
 | [Reglas de negocio](REGLAS_NEGOCIO.md) | JASS, analistas y desarrollo | Cuotas, vencimientos, mora, pagos, multas, caja, códigos y medidores. |
 | [Reportes e indicadores](REPORTES.md) | Tesorería, contabilidad y auditoría | Fórmulas del dashboard, filtros y contenido de los reportes. |
 | [Arquitectura técnica](ARQUITECTURA.md) | Desarrollo y soporte | Componentes, modelo de datos, seguridad, API interna y pruebas. |
+| [Revisión de redundancias](REVISION_REDUNDANCIAS_2026-10-19.md) | Desarrollo y soporte | Paginación, presentación común y padrones por barrio. |
 | [Importación del padrón corregido](IMPORTACION_PADRON_2026-10-19.md) | Soporte y administración | Agrupación de clientes, documentos provisionales, identificadores, respaldos y listas de 25 a 200 registros. |
 | [Revisión de base de datos](REVISION_BASE_DATOS_2026-10-14.md) | Soporte y desarrollo | Campos vacíos, usos comprobados y decisión de conservar el esquema. |
 | [Operación y mantenimiento](OPERACION_MANTENIMIENTO.md) | Soporte y administrador técnico | Rutinas, respaldos, tareas automáticas y solución de errores frecuentes. |

@@ -37,7 +37,7 @@
             @if (is_scalar($value))<input type="hidden" name="{{ $key }}" value="{{ $value }}">@endif
         @endforeach
         <p class="text-sm text-slate-600">Mostrando {{ $records->firstItem() ?? 0 }}–{{ $records->lastItem() ?? 0 }} de {{ $records->total() }} registros</p>
-        <div class="flex items-center gap-2"><label for="per-page" class="text-sm font-semibold">Por página</label><select id="per-page" name="per_page" class="rounded-lg border-slate-300">@foreach ([25, 50, 100, 200] as $size)<option value="{{ $size }}" @selected($perPage === $size)>{{ $size }}</option>@endforeach</select><button class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Aplicar</button></div>
+        <div class="flex items-center gap-2"><label for="per-page" class="text-sm font-semibold">Por página</label><select id="per-page" name="per_page" class="rounded-lg border-slate-300">@include('partials.page-size-options', ['selectedSize' => $perPage])</select><button class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Aplicar</button></div>
     </form>
 
     @if ($resource === 'audit-logs')
@@ -100,14 +100,7 @@
                 <article class="rounded-xl border bg-white p-4">
                     @foreach($columns as $name => $field)
                         @php
-                            $mobileValue = isset($field['relation']) ? data_get($record, $field['relation'].'.'.$field['options']['label']) : $record->getAttribute($name);
-                            if (isset($field['relation']) && $record->{$field['relation']} instanceof \App\Models\User) $mobileValue = $record->{$field['relation']}->display_name;
-                            if (isset($field['choices'])) $mobileValue = $field['choices'][$mobileValue] ?? $mobileValue;
-                            elseif (is_string($mobileValue)) $mobileValue = App\Http\Controllers\Web\JassPageController::catalogValueLabel($mobileValue);
-                            if ($field['type'] === 'number' && $mobileValue !== null) $mobileValue = $name === 'year' ? (string)(int)$mobileValue : number_format((float)$mobileValue, ($field['integer'] ?? false) ? 0 : 2);
-                            if ($resource === 'audit-logs' && $name === 'table_name') $mobileValue = $record->moduleLabel();
-                            if ($mobileValue instanceof DateTimeInterface) $mobileValue = $mobileValue->format('d/m/Y');
-                            if ($field['type'] === 'checkbox') $mobileValue = $mobileValue ? 'Sí' : 'No';
+                            $mobileValue = App\Support\ResourcePresenter::value($resource, $record, $name, $field);
                         @endphp
                         <p class="mt-1 break-words text-sm"><span class="font-semibold">{{ $field['label'] }}:</span> {{ $mobileValue ?? '—' }}</p>
                     @endforeach
@@ -133,28 +126,7 @@
                         <tr class="transition hover:bg-slate-50/80">
                             @foreach ($columns as $name => $field)
                                 @php
-                                    $value = $record->getAttribute($name);
-                                    if (isset($field['relation'])) {
-                                        $value = data_get($record, $field['relation'].'.'.$field['options']['label']);
-                                        if ($record->{$field['relation']} instanceof \App\Models\User) $value = $record->{$field['relation']}->display_name;
-                                    }
-                                    if (isset($field['choices'])) {
-                                        $value = $field['choices'][$value] ?? $value;
-                                    } elseif (is_string($value)) {
-                                        $value = App\Http\Controllers\Web\JassPageController::catalogValueLabel($value);
-                                    }
-                                    if ($resource === 'audit-logs' && $name === 'table_name') $value = $record->moduleLabel();
-                                    if ($field['type'] === 'checkbox') {
-                                        $value = $value ? 'Sí' : 'No';
-                                    } elseif ($field['type'] === 'number' && $value !== null) {
-                                        $value = ($name === 'year' ? (string) (int) $value : number_format((float) $value, ($field['integer'] ?? false) ? 0 : 2));
-                                    } elseif ($value instanceof DateTimeInterface) {
-                                        $value = match ($field['type']) {
-                                            'date' => $value->format('d/m/Y'),
-                                            'datetime-local' => $value->format('d/m/Y H:i'),
-                                            default => $value->format('d/m/Y'),
-                                        };
-                                    }
+                                    $value = App\Support\ResourcePresenter::value($resource, $record, $name, $field);
                                 @endphp
                                 <td class="max-w-xs px-5 py-3.5 text-slate-600"><span class="block truncate" title="{{ is_scalar($value) ? $value : '' }}">{{ ($value === null || $value === '') ? '—' : $value }}</span></td>
                             @endforeach

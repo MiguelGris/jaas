@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\ListPagination;
 use App\Models\Assembly;
 use App\Models\AssemblyAttendance;
 use App\Models\AssemblyType;
@@ -72,7 +73,7 @@ final class JassResourceController extends Controller
     public function index(Request $request)
     {
         $definition = $this->definition($request);
-        $perPage = min(max((int) $request->query('per_page', 25), 1), 200);
+        $perPage = min(max((int) $request->query('per_page', ListPagination::DEFAULT_SIZE), 1), max(ListPagination::SIZES));
 
         return $this->query($definition)
             ->orderByDesc('id')

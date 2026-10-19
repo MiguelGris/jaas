@@ -71,17 +71,7 @@
                 @continue($field['hide_on_show'] ?? false)
                 @continue($resource === 'payments' && in_array($name, ['voided_at', 'voided_by', 'void_reason'], true) && blank($record->getAttribute($name)))
                 @php
-                    $value = $record->getAttribute($name);
-                    if ($resource === 'settings' && $name === 'key') $value = $record->displayName();
-                    if ($resource === 'settings' && $name === 'description') $value = $record->displayDescription();
-                    if (isset($field['relation'])) $value = data_get($record, $field['relation'].'.'.$field['options']['label']);
-                    if (isset($field['relation']) && $record->{$field['relation']} instanceof \App\Models\User) $value = $record->{$field['relation']}->display_name;
-                    if (isset($field['choices'])) $value = $field['choices'][$value] ?? $value;
-                    elseif (is_string($value)) $value = App\Http\Controllers\Web\JassPageController::catalogValueLabel($value);
-                    if ($field['type'] === 'checkbox') $value = $value ? 'Sí' : 'No';
-                    elseif ($field['type'] === 'number' && $value !== null) $value = ($name === 'year' ? (string) (int) $value : number_format((float) $value, ($field['integer'] ?? false) ? 0 : 2));
-                    elseif ($value instanceof DateTimeInterface) $value = match ($field['type']) { 'date' => $value->format('d/m/Y'), 'datetime-local' => $value->format('d/m/Y H:i'), default => $value->format('d/m/Y') };
-                    if ($resource === 'audit-logs' && $name === 'table_name') $value = $record->moduleLabel();
+                    $value = App\Support\ResourcePresenter::value($resource, $record, $name, $field);
                     if ($resource === 'cash-closings' && $name === 'month') $value = Carbon\Carbon::create((int)$record->year, (int)$record->month, 1)->translatedFormat('F Y');
                     if ($resource === 'cash-closings' && in_array($name, ['total_income','total_expense','balance'])) $value = 'S/ '.number_format((float)$record->getAttribute($name), 2);
                     $isStructuredValue = is_array($value);

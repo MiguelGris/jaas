@@ -237,3 +237,11 @@ El catálogo Permisos no aparece en el menú y sus rutas web y API rechazan el a
 La cobranza actual distribuye pagos mediante `payment_allocations`. El campo heredado `payments.invoice_id` continúa definido en relaciones Eloquent y en la validación API; no debe retirarse sin adaptar esas referencias. Los campos `concept`, `service_component` y `fine_component` distinguen pagos separados y preservan el tratamiento de pagos históricos combinados.
 
 `users.remember_token` da soporte a Recordar mi sesión. `users.email_verified_at` y `password_reset_tokens` permanecen como estructura preparada, sin un flujo activo de verificación de correo o recuperación de contraseña. La decisión actual es conservarlos. Véase la [revisión de base de datos](REVISION_BASE_DATOS_2026-10-14.md).
+
+## Componentes compartidos de listas y reportes
+
+`App\Support\ListPagination` define tamaños, valor predeterminado y reglas de validación de las listas. Las opciones se renderizan con `partials/page-size-options.blade.php`. Para cambiar la política de paginación, ajustar esta clase y verificar búsquedas, filtros y enlaces entre páginas.
+
+`App\Support\ResourcePresenter` resuelve valores y relaciones de recursos y aplica etiquetas, formato de importes y fechas en tablas, tarjetas móviles y fichas. Los usuarios relacionados usan su nombre de presentación, sin alterar las etiquetas de campos utilizadas por consultas SQL.
+
+Los padrones de clientes y conexiones comparten `ReportService::neighborhoodGroups` y la plantilla `reports/register-pdf.blade.php`. Los grupos y totales propios de cada padrón permanecen separados: un cliente puede aparecer en varios barrios y el resumen cuenta titulares únicos. Véase la [revisión de redundancias del 19/10/2026](REVISION_REDUNDANCIAS_2026-10-19.md).

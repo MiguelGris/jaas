@@ -521,11 +521,8 @@ final class ReportService
                 'Conexiones con medidor' => $connections->where('payment_mode', Connection::PAYMENT_METERED)->count(),
             ], [],
         );
-        $document['pdf_view'] = 'reports.service-register-pdf';
-        $document['groups'] = $rows->groupBy(fn (array $row) => $row[0])->map(fn ($group, $name) => [
-            'name' => $name,
-            'rows' => $group->map(fn (array $row) => array_slice($row, 1))->values()->all(),
-        ])->values()->all();
+        $document['pdf_view'] = 'reports.register-pdf';
+        $document['groups'] = $this->neighborhoodGroups($rows);
 
         return $document;
     }
@@ -554,16 +551,22 @@ final class ReportService
                 'Personas naturales' => $customers->where('customer_type', Customer::TYPE_PERSON)->count(),
                 'Instituciones / empresas' => $customers->where('customer_type', Customer::TYPE_BUSINESS)->count()], [],
         );
-        $document['pdf_view'] = 'reports.service-register-pdf';
+        $document['pdf_view'] = 'reports.register-pdf';
         $document['pdf_widths'] = [10, 12, 24, 10, 10, 6, 28];
         $document['register_total'] = $customers->count();
         $document['row_label'] = 'clientes';
         $document['empty_message'] = 'No hay clientes registrados.';
-        $document['groups'] = $rows->groupBy(fn ($row) => $row[0])->map(fn ($group, $name) => [
-            'name' => $name, 'rows' => $group->map(fn ($row) => array_slice($row, 1))->values()->all(),
-        ])->values()->all();
+        $document['groups'] = $this->neighborhoodGroups($rows);
 
         return $document;
+    }
+
+    private function neighborhoodGroups(Collection $rows): array
+    {
+        return $rows->groupBy(fn (array $row) => $row[0])->map(fn ($group, $name) => [
+            'name' => $name,
+            'rows' => $group->map(fn (array $row) => array_slice($row, 1))->values()->all(),
+        ])->values()->all();
     }
 
     private function agingBucket(int $days): string
