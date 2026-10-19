@@ -52,21 +52,21 @@ class PaymentReceiptFilterTest extends TestCase
     public function test_shared_lists_filter_before_paginating_and_preserve_the_page_size(): void
     {
         $user = $this->administrator();
-        for ($i = 1; $i <= 23; $i++) {
+        for ($i = 1; $i <= 28; $i++) {
             \App\Models\Neighborhood::query()->create(['name' => 'Sector '.$i, 'active' => true]);
         }
         \App\Models\Neighborhood::query()->create(['name' => 'Otro barrio', 'active' => true]);
-        $response = $this->actingAs($user)->get(route('resources.index', ['resource' => 'neighborhoods', 'q' => 'Sector', 'per_page' => 20]));
-        $response->assertOk()->assertViewHas('records', fn ($records) => $records->total() === 23 && $records->count() === 20 && $records->perPage() === 20);
-        $response->assertDontSee('Otro barrio')->assertSee('per_page=20', false);
-        $this->get(route('resources.index', ['resource' => 'neighborhoods', 'q' => 'Sector', 'per_page' => 20, 'page' => 2]))
+        $response = $this->actingAs($user)->get(route('resources.index', ['resource' => 'neighborhoods', 'q' => 'Sector', 'per_page' => 25]));
+        $response->assertOk()->assertViewHas('records', fn ($records) => $records->total() === 28 && $records->count() === 25 && $records->perPage() === 25);
+        $response->assertDontSee('Otro barrio')->assertSee('per_page=25', false);
+        $this->get(route('resources.index', ['resource' => 'neighborhoods', 'q' => 'Sector', 'per_page' => 25, 'page' => 2]))
             ->assertOk()->assertViewHas('records', fn ($records) => $records->count() === 3);
-        foreach ([10, 20, 50, 100] as $size) {
+        foreach ([25, 50, 100, 200] as $size) {
             $this->get(route('resources.index', ['resource' => 'neighborhoods', 'per_page' => $size]))
                 ->assertOk()->assertViewHas('records', fn ($records) => $records->perPage() === $size);
         }
         $this->get(route('resources.index', ['resource' => 'neighborhoods']))
-            ->assertOk()->assertViewHas('records', fn ($records) => $records->perPage() === 10);
+            ->assertOk()->assertViewHas('records', fn ($records) => $records->perPage() === 25);
     }
 
     public function test_receipts_can_be_searched_by_receipt_and_operation_number(): void

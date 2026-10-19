@@ -45,7 +45,7 @@ class BulkWaiverCampaignTest extends TestCase
     public function test_full_mass_campaign_is_admin_only_previewed_and_audited_without_cash_income(): void
     {
         [$user, $customers] = $this->debts();
-        $this->actingAs($user)->get(route('waivers.index', ['per_page' => 10, 'kind' => 'both']))->assertOk()->assertSee('Campañas de condonación')->assertViewHas('rows', fn ($rows) => $rows->total() === 4);
+        $this->actingAs($user)->get(route('waivers.index', ['per_page' => 25, 'kind' => 'both']))->assertOk()->assertSee('Campañas de condonación')->assertViewHas('rows', fn ($rows) => $rows->total() === 4);
         $this->post(route('waivers.preview'), ['scope' => 'filtered', 'kind' => 'both', 'mode' => 'all', 'reason' => 'Campaña urgente'])
             ->assertSessionHasNoErrors()->assertRedirect();
         $snapshot = session('bulk_waiver_preview');
@@ -118,7 +118,7 @@ class BulkWaiverCampaignTest extends TestCase
 
     public function test_mass_filters_amount_limits_and_scope_include_other_pages(): void
     {
-        [$user, $customers] = $this->debts(11);
+        [$user, $customers] = $this->debts(14);
         $service = app(BulkWaiverService::class);
         $filtered = $service->eligible(['kind' => 'fines', 'q' => $customers->first()->customer_code]);
         $this->assertCount(1, $filtered);
@@ -127,9 +127,9 @@ class BulkWaiverCampaignTest extends TestCase
         $this->actingAs($user)->post(route('waivers.preview'), ['scope' => 'filtered', 'mode' => 'percentage', 'value' => 101, 'reason' => 'Inválido'])->assertSessionHasErrors('campaign');
         $this->post(route('waivers.preview'), ['scope' => 'filtered', 'mode' => 'amount', 'value' => 1000, 'reason' => 'Por cliente'])->assertSessionHasNoErrors();
         $this->assertDatabaseCount('waiver_campaigns', 0);
-        $this->get(route('waivers.index', ['per_page' => 10, 'kind' => 'both']))->assertOk()->assertViewHas('rows', fn ($rows) => $rows->total() === 22 && $rows->count() === 10);
+        $this->get(route('waivers.index', ['per_page' => 25, 'kind' => 'both']))->assertOk()->assertViewHas('rows', fn ($rows) => $rows->total() === 28 && $rows->count() === 25);
         $this->post(route('waivers.preview'), ['scope' => 'filtered', 'mode' => 'all', 'reason' => 'Todas las páginas'])->assertSessionHasNoErrors();
-        $this->assertCount(22, session('bulk_waiver_preview')['rows']);
+        $this->assertCount(28, session('bulk_waiver_preview')['rows']);
     }
 
     public function test_ten_customer_campaign_caps_five_smaller_debts_and_discounts_five_larger_debts(): void

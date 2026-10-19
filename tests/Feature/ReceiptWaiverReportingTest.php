@@ -55,13 +55,13 @@ class ReceiptWaiverReportingTest extends TestCase
     public function test_union_pagination_counts_both_types_without_fetching_two_separate_pages(): void
     {
         [$user,$customers,$method] = $this->receipts();
-        for ($i = 0; $i < 8; $i++) {
+        for ($i = 0; $i < 23; $i++) {
             Payment::query()->create(['customer_id' => $customers->first()->id, 'paid_at' => '2026-10-20 10:00:00', 'amount' => 1, 'payment_method_id' => $method->id, 'source' => 'COUNTER', 'operation_number' => 'OP26-UNION-'.$i, 'status' => 'ACTIVE']);
         }
-        $url = route('resources.index', ['resource' => 'payments', 'per_page' => 10]);
-        $this->actingAs($user)->get($url)->assertOk()->assertViewHas('records', fn ($rows) => $rows->total() === 11 && $rows->count() === 10);
+        $url = route('resources.index', ['resource' => 'payments', 'per_page' => 25]);
+        $this->actingAs($user)->get($url)->assertOk()->assertViewHas('records', fn ($rows) => $rows->total() === 26 && $rows->count() === 25);
         $this->get($url.'&page=2')->assertOk()->assertViewHas('records', fn ($rows) => $rows->count() === 1 && $rows->first()->kind === 'service_waiver');
-        foreach ([10, 20, 50, 100] as $size) {
+        foreach ([25, 50, 100, 200] as $size) {
             $this->get(route('resources.index', ['resource' => 'payments', 'per_page' => $size]))->assertOk()->assertViewHas('records', fn ($rows) => $rows->perPage() === $size);
         }
     }

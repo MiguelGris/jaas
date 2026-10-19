@@ -8,7 +8,7 @@ La interfaz está en español, es adaptable a computadoras y teléfonos, y está
 
 - Consulta pública de deuda mediante DNI de 8 dígitos o RUC de 11 dígitos.
 - Gestión de clientes, predios, conexiones y tipos de uso; DNI de 8 dígitos o RUC de 11 obligatorio al registrar y editar clientes.
-- Listados con filtros y tamaño de página seleccionable de 10, 20, 50 o 100 registros.
+- Listados con filtros y tamaño de página seleccionable de 25, 50, 100 o 200 registros.
 - Modalidad de pago fijo o con medidor por conexión; pago fijo es el valor predeterminado.
 - Registro y validación de medidores y lecturas de consumo.
 - Tarifas anuales para cuota fija y precio por metro cúbico.

@@ -232,7 +232,7 @@ Los pagos históricos combinados mantienen su distribución. Los nuevos pagos se
 
 La opción Administración → Condonación masiva está disponible únicamente para el administrador. La restricción también se valida en el servidor para listar, revisar y aplicar campañas, aunque otro usuario tenga todos los permisos del catálogo.
 
-Se pueden filtrar deudas por cliente, sector, tipo y fecha límite. Las listas permiten 10, 20, 50 o 100 deudas por página. Se puede condonar solo lo marcado en la página o todas las deudas que coincidan con los filtros, incluidas las demás páginas.
+Se pueden filtrar deudas por cliente, sector, tipo y fecha límite. Las listas permiten 25, 50, 100 o 200 deudas por página. Se puede condonar solo lo marcado en la página o todas las deudas que coincidan con los filtros, incluidas las demás páginas.
 
 Una campaña condona todo el saldo, un porcentaje de cada deuda o un importe por cliente aplicado desde sus deudas seleccionadas más antiguas. En la modalidad por importe, cada cliente recibe hasta el importe indicado, limitado a su saldo seleccionado. Si debe menos, se condona solo su deuda; la diferencia no crea un saldo a favor ni aumenta el importe asignado a otro cliente. Antes de aplicar se muestra una revisión paginada con clientes, deudas, saldo actual, importe condonado y saldo restante. El motivo es obligatorio. La confirmación conserva la selección revisada y vuelve a comprobar los saldos; si algún cobro o condonación los cambió, se rechaza toda la campaña para evitar resultados parciales.
 

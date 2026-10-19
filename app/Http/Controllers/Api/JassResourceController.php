@@ -72,7 +72,7 @@ final class JassResourceController extends Controller
     public function index(Request $request)
     {
         $definition = $this->definition($request);
-        $perPage = min(max((int) $request->query('per_page', 15), 1), 100);
+        $perPage = min(max((int) $request->query('per_page', 25), 1), 200);
 
         return $this->query($definition)
             ->orderByDesc('id')

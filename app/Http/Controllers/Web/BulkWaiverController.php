@@ -24,10 +24,10 @@ final class BulkWaiverController extends Controller
     {
         return $request->validate(['q' => ['nullable', 'string', 'max:150'], 'kind' => ['nullable', 'in:all,service,both,mora,fines'],
             'neighborhood_id' => ['nullable', 'integer', 'exists:neighborhoods,id'], 'until' => ['nullable', 'date'],
-            'per_page' => ['nullable', 'integer', 'in:10,20,50,100'], 'page' => ['nullable', 'integer', 'min:1']]);
+            'per_page' => ['nullable', 'integer', 'in:25,50,100,200'], 'page' => ['nullable', 'integer', 'min:1']]);
     }
 
-    private function paginate($rows, Request $request, int $size = 10): LengthAwarePaginator
+    private function paginate($rows, Request $request, int $size = 25): LengthAwarePaginator
     {
         $page = max(1, (int) $request->input('page', 1));
 
@@ -40,9 +40,9 @@ final class BulkWaiverController extends Controller
         $filters = array_replace(['kind' => 'all'], $this->filters($request));
         $eligible = $service->eligible($filters);
 
-        return view('waivers.index', ['filters' => $filters, 'rows' => $this->paginate($eligible, $request, (int) ($filters['per_page'] ?? 10)),
+        return view('waivers.index', ['filters' => $filters, 'rows' => $this->paginate($eligible, $request, (int) ($filters['per_page'] ?? 25)),
             'eligibleTotal' => $eligible->sum('balance'), 'neighborhoods' => Neighborhood::query()->orderBy('name')->get(),
-            'campaigns' => WaiverCampaign::query()->with('user')->latest()->paginate(10, ['*'], 'history_page')->withQueryString()]);
+            'campaigns' => WaiverCampaign::query()->with('user')->latest()->paginate((int) ($filters['per_page'] ?? 25), ['*'], 'history_page')->withQueryString()]);
     }
 
     public function preview(Request $request, BulkWaiverService $service)
@@ -82,7 +82,7 @@ final class BulkWaiverController extends Controller
         $this->authorizeAdmin($request);
         $snapshot = $this->snapshot($request);
 
-        return view('waivers.review', ['snapshot' => $snapshot, 'rows' => $this->paginate($snapshot['rows'], $request, 20)]);
+        return view('waivers.review', ['snapshot' => $snapshot, 'rows' => $this->paginate($snapshot['rows'], $request, (int) ($this->filters($request)['per_page'] ?? 25))]);
     }
 
     public function store(Request $request, BulkWaiverService $service)
@@ -100,6 +100,6 @@ final class BulkWaiverController extends Controller
     {
         $this->authorizeAdmin($request);
 
-        return view('waivers.service-receipts', ['campaign' => $campaign, 'waivers' => ServiceWaiver::query()->where('campaign_id', $campaign->id)->with(['invoice.connection.property.customer'])->orderBy('id')->paginate(20)]);
+        return view('waivers.service-receipts', ['campaign' => $campaign, 'waivers' => ServiceWaiver::query()->where('campaign_id', $campaign->id)->with(['invoice.connection.property.customer'])->orderBy('id')->paginate((int) ($this->filters($request)['per_page'] ?? 25))->withQueryString()]);
     }
 }

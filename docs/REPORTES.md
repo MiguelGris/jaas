@@ -162,7 +162,7 @@ El flujo de caja mensual calcula un saldo propio del periodo. El saldo en caja d
 
 ## Recibos y reportes de servicio condonado
 
-Facturación → Recibos muestra los pagos y los recibos mensuales de servicio condonado en una sola lista ordenada por fecha, con búsqueda por cliente o código, filtros de fecha y tipo, y paginación de 10, 20, 50 o 100 registros. Cada comprobante conserva su identidad y enlace de impresión; las condonaciones no tienen la acción de anular un pago.
+Facturación → Recibos muestra los pagos y los recibos mensuales de servicio condonado en una sola lista ordenada por fecha, con búsqueda por cliente o código, filtros de fecha y tipo, y paginación de 25, 50, 100 o 200 registros. Cada comprobante conserva su identidad y enlace de impresión; las condonaciones no tienen la acción de anular un pago.
 
 El historial de pagos por cliente también incluye los recibos de servicio condonado dentro del periodo elegido, separando Importe cobrado de Servicio condonado. Los totales de pagos válidos solo suman dinero cobrado.
 

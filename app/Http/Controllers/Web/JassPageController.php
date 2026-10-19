@@ -211,10 +211,10 @@ final class JassPageController extends Controller
         }
         $listFilters = $request->validate([
             'q' => ['nullable', 'string', 'max:150'],
-            'per_page' => ['nullable', 'integer', Rule::in([10, 20, 50, 100])],
+            'per_page' => ['nullable', 'integer', Rule::in([25, 50, 100, 200])],
         ]);
         $listSearch = trim((string) ($listFilters['q'] ?? ''));
-        $perPage = (int) ($listFilters['per_page'] ?? 10);
+        $perPage = (int) ($listFilters['per_page'] ?? 25);
         if (! in_array($resource, ['customers', 'audit-logs'], true) && $listSearch !== '') {
             foreach (preg_split('/\s+/', $listSearch, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $term) {
                 $records->where(function ($query) use ($columns, $term): void {

@@ -37,7 +37,7 @@
             @if (is_scalar($value))<input type="hidden" name="{{ $key }}" value="{{ $value }}">@endif
         @endforeach
         <p class="text-sm text-slate-600">Mostrando {{ $records->firstItem() ?? 0 }}–{{ $records->lastItem() ?? 0 }} de {{ $records->total() }} registros</p>
-        <div class="flex items-center gap-2"><label for="per-page" class="text-sm font-semibold">Por página</label><select id="per-page" name="per_page" class="rounded-lg border-slate-300">@foreach ([10, 20, 50, 100] as $size)<option value="{{ $size }}" @selected($perPage === $size)>{{ $size }}</option>@endforeach</select><button class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Aplicar</button></div>
+        <div class="flex items-center gap-2"><label for="per-page" class="text-sm font-semibold">Por página</label><select id="per-page" name="per_page" class="rounded-lg border-slate-300">@foreach ([25, 50, 100, 200] as $size)<option value="{{ $size }}" @selected($perPage === $size)>{{ $size }}</option>@endforeach</select><button class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold">Aplicar</button></div>
     </form>
 
     @if ($resource === 'audit-logs')
