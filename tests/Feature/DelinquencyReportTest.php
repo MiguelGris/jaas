@@ -101,7 +101,7 @@ class DelinquencyReportTest extends TestCase
         $this->assertSame('Recaudación por medio de pago', $paymentMethods['title']);
         $this->assertSame(['Efectivo', 1, 15.0, '100 %'], $paymentMethods['rows'][0]);
         $this->assertSame('Padrón de conexiones', $register['title']);
-        $this->assertSame($connection->supply_code, $register['rows'][0][0]);
+        $this->assertSame($connection->supply_code, $register['rows'][0][1]);
     }
 
     public function test_recommended_reports_are_available_as_pdf_and_excel(): void

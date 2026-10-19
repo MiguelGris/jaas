@@ -102,7 +102,7 @@ Agrupa pagos válidos por efectivo, Yape, Plin, transferencia u otros medios con
 
 ### Padrón de conexiones
 
-Lista suministro, cliente, DNI, titular, predio, dirección, tipo de servicio, modalidad de cobro, estado y medidor activo. Resume conexiones totales, de pago fijo y con medidor.
+Lista barrio, suministro, cliente, DNI/RUC, titular, predio, dirección, tipo de servicio, modalidad de cobro, estado y medidor activo. Se ordena por barrio y suministro. El PDF inicia cada barrio en una página nueva y repite el barrio y los encabezados al continuar; Excel incluye la columna Barrio para identificar y filtrar cada grupo. Resume conexiones totales, de pago fijo y con medidor.
 
 ### Asistentes e inasistentes
 
@@ -133,7 +133,8 @@ La forma general es:
 | Morosos | `debtors` | Ninguno |
 | Antigüedad | `debt-aging` | Ninguno |
 | Medios de pago | `payment-methods` | `month=AAAA-MM` |
-| Padrón | `service-register` | Ninguno |
+| Padrón de conexiones | `service-register` | `register_type=connections` |
+| Padrón de clientes | `customer-register` | Ninguno; también disponible mediante `service-register?register_type=customers` |
 | Asistencia | `attendance` | `assembly_id=N` |
 | Exonerados | `work-exemptions` | Ninguno |
 
@@ -174,3 +175,9 @@ El reporte Condonaciones de servicio, disponible en Excel y PDF, detalla fecha, 
 ## Condonaciones anuales de moras y multas
 
 En el centro de reportes se puede elegir un año y descargar Excel o PDF con un resumen de los doce meses, totales separados de moras y multas, total condonado, clientes y operaciones. El detalle incluye fecha, tipo y código de deuda, cliente, motivo, usuario que autorizó y campaña o condonación individual. Se agrupa por la fecha de la condonación, aunque la deuda corresponda a otro año. Los importes son condonados, no recaudados, y no modifican los reportes de caja.
+
+Para padrones extensos, la exportación PDF solicita hasta 512 MB de memoria en la petición actual. Puede configurarse con `JASS_REGISTER_PDF_MEMORY_MB`; no modifica el archivo php.ini.
+
+## Padrón de clientes por barrio
+
+En Reportes → Padrones por barrio se elige Clientes o Conexiones y después Excel o PDF. El padrón de clientes muestra código, DNI/RUC, titular, tipo, teléfono, cantidad de predios y direcciones. Un titular aparece una vez por barrio, agrupando sus predios de ese barrio. Si posee predios en varios barrios aparece en cada uno; el resumen cuenta clientes únicos. Los clientes sin predios se incluyen en Sin barrio. El PDF comienza cada barrio en una página nueva y repite sus encabezados; Excel incluye la columna Barrio y el mismo orden.

@@ -49,6 +49,7 @@ final class ReportService
             'debt-aging' => $this->debtAging(),
             'payment-methods' => $this->paymentMethods($filters['month'] ?? null),
             'service-register' => $this->serviceRegister(),
+            'customer-register' => $this->customerRegister(),
             'attendance' => $this->attendance($filters['assembly_id'] ?? null),
             'work-exemptions' => $this->workExemptions(),
             default => abort(404),
@@ -486,14 +487,17 @@ final class ReportService
     private function serviceRegister(): array
     {
         $connections = Connection::query()
-            ->with(['property.customer', 'connectionType', 'connectionStatus', 'meters'])
+            ->with(['property.customer', 'property.neighborhood', 'connectionType', 'connectionStatus', 'meters'])
             ->orderBy('supply_code')
-            ->get();
+            ->get()
+            ->sortBy(fn (Connection $connection) => mb_strtolower($connection->property?->neighborhood?->name ?? 'Sin barrio').'|'.$connection->supply_code)
+            ->values();
         $rows = $connections->map(function (Connection $connection): array {
             $customer = $connection->property?->customer;
             $meter = $connection->meters->firstWhere('active', true);
 
             return [
+                $connection->property?->neighborhood?->name ?? 'Sin barrio',
                 $connection->supply_code,
                 $customer?->customer_code ?? '—',
                 $customer?->national_id ?? '—',
@@ -507,15 +511,59 @@ final class ReportService
             ];
         });
 
-        return $this->document(
+        $document = $this->document(
             'Padrón de conexiones', 'Clientes, predios y servicios registrados al '.now()->format('d/m/Y'), 'padron-conexiones-'.now()->format('Y-m-d'),
-            ['Suministro', 'Cliente', 'DNI / RUC', 'Titular o razón social', 'Predio', 'Dirección', 'Servicio', 'Cobro', 'Estado', 'Medidor'], $rows->all(),
+            ['Barrio', 'Suministro', 'Cliente', 'DNI / RUC', 'Titular o razón social', 'Predio', 'Dirección', 'Servicio', 'Cobro', 'Estado', 'Medidor'], $rows->all(),
             [
+                'Barrios' => $rows->pluck(0)->unique()->count(),
                 'Conexiones registradas' => $connections->count(),
                 'Conexiones con pago fijo' => $connections->where('payment_mode', Connection::PAYMENT_FIXED)->count(),
                 'Conexiones con medidor' => $connections->where('payment_mode', Connection::PAYMENT_METERED)->count(),
             ], [],
         );
+        $document['pdf_view'] = 'reports.service-register-pdf';
+        $document['groups'] = $rows->groupBy(fn (array $row) => $row[0])->map(fn ($group, $name) => [
+            'name' => $name,
+            'rows' => $group->map(fn (array $row) => array_slice($row, 1))->values()->all(),
+        ])->values()->all();
+
+        return $document;
+    }
+
+    private function customerRegister(): array
+    {
+        $customers = Customer::query()->with(['properties.neighborhood'])
+            ->orderBy('last_name')->orderBy('first_name')->orderBy('business_name')->orderBy('customer_code')->get();
+        $rows = $customers->flatMap(function (Customer $customer) {
+            $groups = $customer->properties->groupBy(fn ($property) => $property->neighborhood?->name ?? 'Sin barrio');
+            if ($groups->isEmpty()) {
+                $groups = collect(['Sin barrio' => collect()]);
+            }
+
+            return $groups->map(fn ($properties, $neighborhood) => [
+                $neighborhood, $customer->customer_code, $customer->national_id ?? '—', $customer->display_name,
+                $customer->isBusiness() ? 'Institución / empresa' : 'Persona natural', $customer->phone ?? '—',
+                $properties->count(), $properties->pluck('address')->implode('; ') ?: 'Sin predios registrados',
+            ])->values();
+        })->sortBy(fn ($row) => mb_strtolower($row[0]).'|'.mb_strtolower($row[3]).'|'.$row[1])->values();
+        $document = $this->document(
+            'Padrón de clientes', 'Clientes por barrio al '.now()->format('d/m/Y').' · Un titular por barrio',
+            'padron-clientes-'.now()->format('Y-m-d'),
+            ['Barrio', 'Cliente', 'DNI / RUC', 'Titular o razón social', 'Tipo de cliente', 'Teléfono', 'Predios', 'Direcciones'],
+            $rows->all(), ['Clientes únicos' => $customers->count(), 'Barrios' => $rows->pluck(0)->unique()->count(),
+                'Personas naturales' => $customers->where('customer_type', Customer::TYPE_PERSON)->count(),
+                'Instituciones / empresas' => $customers->where('customer_type', Customer::TYPE_BUSINESS)->count()], [],
+        );
+        $document['pdf_view'] = 'reports.service-register-pdf';
+        $document['pdf_widths'] = [10, 12, 24, 10, 10, 6, 28];
+        $document['register_total'] = $customers->count();
+        $document['row_label'] = 'clientes';
+        $document['empty_message'] = 'No hay clientes registrados.';
+        $document['groups'] = $rows->groupBy(fn ($row) => $row[0])->map(fn ($group, $name) => [
+            'name' => $name, 'rows' => $group->map(fn ($row) => array_slice($row, 1))->values()->all(),
+        ])->values()->all();
+
+        return $document;
     }
 
     private function agingBucket(int $days): string

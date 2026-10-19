@@ -63,8 +63,13 @@
         </form>
 
         <form id="reporte-padron-conexiones" method="GET" action="{{ route('reports.download', ['report' => 'service-register', 'format' => 'xlsx']) }}" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 class="font-semibold text-slate-800">Padrón de conexiones</h3>
-            <p class="mt-1 text-sm text-slate-500">Clientes, predios, servicios, modalidad de cobro y medidores.</p>
+            <h3 class="font-semibold text-slate-800">Padrones por barrio</h3>
+            <p class="mt-1 text-sm text-slate-500">Selecciona el padrón de clientes o conexiones. Ambos se ordenan y separan por barrios.</p>
+            <label for="register-type" class="mt-3 block text-sm font-semibold">Padrón a descargar</label>
+            <select id="register-type" name="register_type" class="mt-2 w-full rounded-lg border-slate-300">
+                <option value="connections">Conexiones: predios, servicios y medidores</option>
+                <option value="customers">Clientes: titulares y sus predios por barrio</option>
+            </select>
             <div class="mt-4 flex gap-2"><button type="submit" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700">Excel</button><button type="submit" formaction="{{ route('reports.download', ['report' => 'service-register', 'format' => 'pdf']) }}" formtarget="_blank" class="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700">Ver PDF</button></div>
         </form>
 
